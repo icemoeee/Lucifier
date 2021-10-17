@@ -4,6 +4,7 @@
 *.pyc
 *.report
 *.sol
+*.idea/
 
 .DS_Store
 
