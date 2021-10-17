@@ -1,0 +1,837 @@
+WARNING:root:You are using evm version 1.8.2. The supported version is 1.7.3
+WARNING:root:You are using solc version 0.4.21, The latest supported version is 0.4.19
+INFO:root:contract greeter.sol:greeter:
+INFO:symExec:	============ Results ===========
+DEBUG:symExec:PUSH1 0x60 
+DEBUG:symExec:PUSH1 0x40 
+DEBUG:symExec:MSTORE 
+DEBUG:symExec:PUSH1 0x04 
+DEBUG:symExec:CALLDATASIZE 
+DEBUG:symExec:LT 
+DEBUG:symExec:PUSH2 0x0057 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:CALLDATALOAD 
+DEBUG:symExec:PUSH29 0x0100000000000000000000000000000000000000000000000000000000 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:DIV 
+DEBUG:symExec:PUSH4 0xffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:PUSH4 0x41c0e1b5 
+DEBUG:symExec:EQ 
+DEBUG:symExec:PUSH2 0x005c 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:PUSH4 0xe9ebeafe 
+DEBUG:symExec:EQ 
+DEBUG:symExec:PUSH2 0x0071 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:PUSH4 0xf851a440 
+DEBUG:symExec:EQ 
+DEBUG:symExec:PUSH2 0x00b4 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:REVERT 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:CALLVALUE 
+DEBUG:symExec:ISZERO 
+DEBUG:symExec:PUSH2 0x0067 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:REVERT 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH2 0x006f 
+DEBUG:symExec:PUSH2 0x0109 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:STOP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:CALLVALUE 
+DEBUG:symExec:ISZERO 
+DEBUG:symExec:PUSH2 0x007c 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:REVERT 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH2 0x0096 
+DEBUG:symExec:PUSH1 0x04 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:CALLDATALOAD 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:NOT 
+DEBUG:symExec:AND 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:PUSH1 0x20 
+DEBUG:symExec:ADD 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:POP 
+DEBUG:symExec:POP 
+DEBUG:symExec:PUSH2 0x019a 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x40 
+DEBUG:symExec:MLOAD 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:DUP3 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:NOT 
+DEBUG:symExec:AND 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:NOT 
+DEBUG:symExec:AND 
+DEBUG:symExec:DUP2 
+DEBUG:symExec:MSTORE 
+DEBUG:symExec:PUSH1 0x20 
+DEBUG:symExec:ADD 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:POP 
+DEBUG:symExec:POP 
+DEBUG:symExec:PUSH1 0x40 
+DEBUG:symExec:MLOAD 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:SUB 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:RETURN 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:CALLVALUE 
+DEBUG:symExec:ISZERO 
+DEBUG:symExec:PUSH2 0x00bf 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:REVERT 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH2 0x00c7 
+DEBUG:symExec:PUSH2 0x01d9 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x40 
+DEBUG:symExec:MLOAD 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:DUP3 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:DUP2 
+DEBUG:symExec:MSTORE 
+DEBUG:symExec:PUSH1 0x20 
+DEBUG:symExec:ADD 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:POP 
+DEBUG:symExec:POP 
+DEBUG:symExec:PUSH1 0x40 
+DEBUG:symExec:MLOAD 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:SUB 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:RETURN 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:SLOAD 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:PUSH2 0x0100 
+DEBUG:symExec:EXP 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:DIV 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:CALLER 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:EQ 
+DEBUG:symExec:ISZERO 
+DEBUG:symExec:PUSH2 0x0198 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:SLOAD 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:PUSH2 0x0100 
+DEBUG:symExec:EXP 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:DIV 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:SUICIDE 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:DUP3 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:NOT 
+DEBUG:symExec:AND 
+DEBUG:symExec:EQ 
+DEBUG:symExec:ISZERO 
+DEBUG:symExec:PUSH2 0x01d0 
+DEBUG:symExec:JUMPI 
+DEBUG:symExec:PUSH32 0x48656c6c6f2c20576f726c640000000000000000000000000000000000000000 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:POP 
+DEBUG:symExec:PUSH2 0x01d4 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:DUP2 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:POP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:SWAP2 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:POP 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:JUMPDEST 
+DEBUG:symExec:PUSH1 0x00 
+DEBUG:symExec:DUP1 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:SLOAD 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:PUSH2 0x0100 
+DEBUG:symExec:EXP 
+DEBUG:symExec:SWAP1 
+DEBUG:symExec:DIV 
+DEBUG:symExec:PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:AND 
+DEBUG:symExec:DUP2 
+DEBUG:symExec:JUMP 
+DEBUG:symExec:STOP 
+DEBUG:symExec:Reach block address 0 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x60 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MSTORE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x04 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLDATASIZE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: LT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0057 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(ULE(4, Id_size), 0, 1) != 0
+DEBUG:symExec:Reach block address 87 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: REVERT 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(ULE(4, Id_size), 0, 1) != 0)
+DEBUG:symExec:Reach block address 13 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLDATALOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH29 0x0100000000000000000000000000000000000000000000000000000000 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DIV 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH4 0xffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH4 0x41c0e1b5 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EQ 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x005c 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Extract(255, 224, Id_1) == 1103159733, 1, 0) != 0
+DEBUG:symExec:Reach block address 92 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLVALUE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ISZERO 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0067 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Iv == 0, 1, 0) != 0
+DEBUG:symExec:Reach block address 103 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x006f 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0109 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 265 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0100 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EXP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DIV 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLER 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EQ 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ISZERO 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0198 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Extract(159, 0, Is) == Extract(159, 0, Ia_store-0-admin),
+   0,
+   1) !=
+0
+DEBUG:symExec:Reach block address 408 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 111 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: STOP 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Extract(159, 0, Is) ==
+       Extract(159, 0, Ia_store-0-admin),
+       0,
+       1) !=
+    0)
+DEBUG:symExec:Reach block address 351 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0100 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EXP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DIV 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SUICIDE 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv'), ('Ia', 'Concat(0, Extract(159, 0, Ia_store-0-admin))', 'all_remaining')]
+DEBUG:symExec:Negated branch expression: Not(If(Iv == 0, 1, 0) != 0)
+DEBUG:symExec:Reach block address 99 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: REVERT 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Extract(255, 224, Id_1) == 1103159733, 1, 0) != 0)
+DEBUG:symExec:Reach block address 65 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH4 0xe9ebeafe 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EQ 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0071 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Extract(255, 224, Id_1) == 3924552446, 1, 0) != 0
+DEBUG:symExec:Reach block address 113 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLVALUE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ISZERO 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x007c 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Iv == 0, 1, 0) != 0
+DEBUG:symExec:Reach block address 124 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0096 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x04 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLDATALOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x20 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ADD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x019a 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 410 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP3 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EQ 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ISZERO 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x01d0 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(input == 0, 0, 1) != 0
+DEBUG:symExec:Reach block address 464 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:Reach block address 468 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 150 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP3 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MSTORE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x20 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ADD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SUB 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: RETURN 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(input == 0, 0, 1) != 0)
+DEBUG:symExec:Reach block address 425 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH32 0x48656c6c6f2c20576f726c640000000000000000000000000000000000000000 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x01d4 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 468 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 150 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP3 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: NOT 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MSTORE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x20 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ADD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SUB 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: RETURN 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Iv == 0, 1, 0) != 0)
+DEBUG:symExec:Reach block address 120 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: REVERT 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Extract(255, 224, Id_1) == 3924552446, 1, 0) != 0)
+DEBUG:symExec:Reach block address 76 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH4 0xf851a440 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EQ 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x00b4 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Extract(255, 224, Id_1) == 4166100032, 1, 0) != 0
+DEBUG:symExec:Reach block address 180 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: CALLVALUE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ISZERO 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x00bf 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPI 
+DEBUG:symExec:Branch expression: If(Iv == 0, 1, 0) != 0
+DEBUG:symExec:Reach block address 191 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x00c7 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x01d9 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 473 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH2 0x0100 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: EXP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DIV 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMP 
+DEBUG:symExec:Reach block address 199 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP3 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH20 0xffffffffffffffffffffffffffffffffffffffff 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: AND 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MSTORE 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x20 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: ADD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: POP 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x40 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: MLOAD 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP2 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SUB 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: SWAP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: RETURN 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Iv == 0, 1, 0) != 0)
+DEBUG:symExec:Reach block address 187 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: REVERT 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Negated branch expression: Not(If(Extract(255, 224, Id_1) == 4166100032, 1, 0) != 0)
+DEBUG:symExec:Reach block address 87 
+
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: JUMPDEST 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: PUSH1 0x00 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: DUP1 
+DEBUG:symExec:==============================
+DEBUG:symExec:EXECUTING: REVERT 
+DEBUG:symExec:TERMINATING A PATH ...
+DEBUG:root:Money flow: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:Done Symbolic execution
+INFO:symExec:	  EVM Code Coverage: 			 99.5%
+Traceback (most recent call last):
+  File "/usr/lib/python2.7/logging/__init__.py", line 861, in emit
+    msg = self.format(record)
+  File "/usr/lib/python2.7/logging/__init__.py", line 734, in format
+    return fmt.format(record)
+  File "/usr/lib/python2.7/logging/__init__.py", line 465, in format
+    record.message = record.getMessage()
+  File "/usr/lib/python2.7/logging/__init__.py", line 329, in getMessage
+    msg = msg % self.args
+TypeError: not all arguments converted during string formatting
+Logged from file symExec.py, line 2229
+DEBUG:symExec:global_problematic_pcs
+INFO:symExec:	  Integer Underflow: 			 False
+INFO:symExec:	  Integer Overflow: 			 False
+INFO:symExec:	  Parity Multisig Bug 2: 		 False
+DEBUG:symExec:Checking for Callstack attack...
+INFO:symExec:	  Callstack Depth Attack Vulnerability:  False
+DEBUG:symExec:detect_money_concurrency
+DEBUG:symExec:Path 0: [('Is', 'Ia', 'Iv')]
+DEBUG:symExec:{}
+DEBUG:symExec:Path 1: [('Is', 'Ia', 'Iv'), ('Ia', 'Concat(0, Extract(159, 0, Ia_store-0-admin))', 'all_remaining')]
+DEBUG:symExec:{0: Ia_store-0-admin}
+INFO:symExec:	  Transaction-Ordering Dependence (TOD): False
+DEBUG:symExec:Concurrency in paths: 
+INFO:symExec:	  Timestamp Dependency: 		 False
+DEBUG:symExec:Results for Reentrancy Bug: [[], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], []]
+INFO:symExec:	  Re-Entrancy Vulnerability: 		 False
+INFO:symExec:	====== Analysis Completed ======

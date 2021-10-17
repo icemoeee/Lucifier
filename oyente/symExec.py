@@ -2098,6 +2098,7 @@ def detect_money_concurrency():
     global g_src_map
     global money_concurrency
 
+    log.debug("detect_money_concurrency")
     n = len(money_flow_all_paths)
     for i in range(n):
         log.debug("Path " + str(i) + ": " + str(money_flow_all_paths[i]))
@@ -2224,6 +2225,10 @@ def detect_reentrancy():
 
 def detect_integer_underflow():
     global integer_underflow
+
+
+    #print("g_src_map:",g_src_map)
+    #print("global_problematic_pcs",global_problematic_pcs)
 
     integer_underflow = IntegerUnderflow(g_src_map, global_problematic_pcs['integer_underflow'])
 
