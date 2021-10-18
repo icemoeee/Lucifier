@@ -158,13 +158,9 @@ class InputHelper:
         if not contracts:
             if not self.compilation_err:
                 logging.critical("Solidity compilation failed. Please use -ce flag to see the detail.")
-                if global_params.WEB:
-                    six.print_({"error": "Solidity compilation failed."})
             else:
                 logging.critical(err)
                 logging.critical("Solidity compilation failed.")
-                if global_params.WEB:
-                    six.print_({"error": err})
 
             exit(1)
         return contracts

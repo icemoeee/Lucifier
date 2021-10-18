@@ -72,9 +72,6 @@ def analyze_bytecode():
     result, exit_code = symExec.run(disasm_file=inp['disasm_file'])
     helper.rm_tmp_files()
 
-    if global_params.WEB:
-        six.print_(json.dumps(result))
-
     return exit_code
 
 def run_solidity_analysis(inputs):
@@ -109,8 +106,6 @@ def analyze_solidity(input_type='solidity'):
     results, exit_code = run_solidity_analysis(inputs)
     helper.rm_tmp_files()
 
-    if global_params.WEB:
-        six.print_(json.dumps(results))
     return exit_code
 
 def main():
@@ -136,7 +131,6 @@ def main():
     parser.add_argument("-glt", "--global-timeout", help="Timeout for symbolic execution", action="store", dest="global_timeout", type=int)
 
     parser.add_argument( "-e",   "--evm",                    help="Do not remove the .evm file.", action="store_true")
-    parser.add_argument( "-w",   "--web",                    help="Run Oyente for web service", action="store_true")
     parser.add_argument( "-j",   "--json",                   help="Redirect results to a json file.", action="store_true")
     parser.add_argument( "-p",   "--paths",                  help="Print path condition information.", action="store_true")
     parser.add_argument( "-db",  "--debug",                  help="Display debug information", action="store_true")
@@ -174,7 +168,6 @@ def main():
     global_params.REPORT_MODE = 1 if args.report else 0
     global_params.USE_GLOBAL_BLOCKCHAIN = 1 if args.globalblockchain else 0
     global_params.INPUT_STATE = 1 if args.state else 0
-    global_params.WEB = 1 if args.web else 0
     global_params.STORE_RESULT = 1 if args.json else 0
     global_params.CHECK_ASSERTIONS = 1 if args.assertion else 0
     global_params.DEBUG_MODE = 1 if args.debug else 0
@@ -187,9 +180,6 @@ def main():
         global_params.GAS_LIMIT = args.gas_limit
     if args.loop_limit:
         global_params.LOOP_LIMIT = args.loop_limit
-    if global_params.WEB:
-        if args.global_timeout and args.global_timeout < global_params.GLOBAL_TIMEOUT:
-            global_params.GLOBAL_TIMEOUT = args.global_timeout
     else:
         if args.global_timeout:
             global_params.GLOBAL_TIMEOUT = args.global_timeout
