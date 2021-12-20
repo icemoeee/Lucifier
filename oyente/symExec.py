@@ -58,6 +58,7 @@ def initGlobalVars():
     global solver
     # Z3 solver
 
+    '''bing fa'''
     if global_params.PARALLEL:
         t2 = Then('simplify', 'solve-eqs', 'smt')
         _t = Then('tseitin-cnf-core', 'split-clause')
@@ -87,7 +88,7 @@ def initGlobalVars():
     visited_pcs = set()
 
     global results
-    if g_src_map:
+    if g_src_map:# not bytecode
         global start_block_to_func_sig
         start_block_to_func_sig = {}
 
@@ -104,7 +105,7 @@ def initGlobalVars():
                 'parity_multisig_bug_2': [],
             }
         }
-    else:
+    else:# bytecode,hen duo False,not []
         results = {
             'evm_code_coverage': '',
             'vulnerabilities': {
@@ -151,6 +152,7 @@ def initGlobalVars():
     global path_conditions
     path_conditions = []
 
+    # store problem pc
     global global_problematic_pcs
     global_problematic_pcs = {"money_concurrency_bug": [], "reentrancy_bug": [], "time_dependency_bug": [], "assertion_failure": [], "integer_underflow": [], "integer_overflow": []}
 
@@ -172,6 +174,7 @@ def initGlobalVars():
     if global_params.USE_GLOBAL_BLOCKCHAIN:
         data_source = EthereumData()
 
+    # report file
     global rfile
     if global_params.REPORT_MODE:
         rfile = open(g_disasm_file + '.report', 'w')
@@ -189,11 +192,13 @@ def change_format():
         file_contents = disasm_file.readlines()
         i = 0
         firstLine = file_contents[0].strip('\n')
+        # print(file_contents)
         for line in file_contents:
             line = line.replace('SELFDESTRUCT', 'SUICIDE')
             line = line.replace('Missing opcode 0xfd', 'REVERT')
             line = line.replace('Missing opcode 0xfe', 'ASSERTFAIL')
-            line = line.replace('Missing opcode', 'INVALID')
+            # line = line.replace('Missing opcode', 'INVALID') #Missing opcode 0x?? -> invalid
+            line = re.sub(r'Missing opcode .{4}', 'INVALID', line) #Missing opcode 0x?? -> invalid
             line = line.replace(':', '')
             lineParts = line.split(' ')
             try: # removing initial zeroes
@@ -202,26 +207,28 @@ def change_format():
             except:
                 lineParts[0] = lineParts[0]
             lineParts[-1] = lineParts[-1].strip('\n')
+            # print("lineparts[-1]",lineParts[-1])
             try: # adding arrow if last is a number
                 lastInt = lineParts[-1]
                 if(int(lastInt, 16) or int(lastInt, 16) == 0) and len(lineParts) > 2:
                     lineParts[-1] = "=>"
-                    lineParts.append(lastInt)
+                    lineParts.append(lastInt) # operator => number
             except Exception:
                 pass
             file_contents[i] = ' '.join(lineParts)
+            # print(file_contents[i])
             i = i + 1
         file_contents[0] = firstLine
         file_contents[-1] += '\n'
 
     with open(g_disasm_file, 'w') as disasm_file:
-        disasm_file.write("\n".join(file_contents))
+        disasm_file.write("\n".join(file_contents)) # contents write in .disasm file
 
 def build_cfg_and_analyze():
     change_format()
     with open(g_disasm_file, 'r') as disasm_file:
         disasm_file.readline()  # Remove first line
-        tokens = tokenize.generate_tokens(disasm_file.readline)
+        tokens = tokenize.generate_tokens(disasm_file.readline) # return iterator
         collect_vertices(tokens)
         construct_bb()
         construct_static_edges()
@@ -233,7 +240,7 @@ def print_cfg():
         block.display()
     log.debug(str(edges))
 
-
+'''mapping source and instruction?'''
 def mapping_push_instruction(current_line_content, current_ins_address, idx, positions, length):
     global g_src_map
 
@@ -251,13 +258,13 @@ def mapping_push_instruction(current_line_content, current_ins_address, idx, pos
                     if int(value, 16) == int(instr_value, 16):
                         g_src_map.instr_positions[current_ins_address] = g_src_map.positions[idx]
                         idx += 1
-                        break;
+                        break
                     else:
                         raise Exception("Source map error")
                 else:
                     g_src_map.instr_positions[current_ins_address] = g_src_map.positions[idx]
                     idx += 1
-                    break;
+                    break
             else:
                 raise Exception("Source map error")
     return idx
@@ -276,7 +283,7 @@ def mapping_non_push_instruction(current_line_content, current_ins_address, idx,
             if name == instr_name or name == "INVALID" and instr_name == "ASSERTFAIL" or name == "KECCAK256" and instr_name == "SHA3" or name == "SELFDESTRUCT" and instr_name == "SUICIDE":
                 g_src_map.instr_positions[current_ins_address] = g_src_map.positions[idx]
                 idx += 1
-                break;
+                break
             else:
                 raise Exception("Source map error")
     return idx
@@ -297,18 +304,19 @@ def collect_vertices(tokens):
     current_ins_address = 0
     last_ins_address = 0
     is_new_line = True
-    current_block = 0
+    current_block = 0 # block start address
     current_line_content = ""
     wait_for_push = False
     is_new_block = False
 
     for tok_type, tok_string, (srow, scol), _, line_number in tokens:
-        if wait_for_push is True:
+        if wait_for_push is True: # add value, to 16 jin zhi
             push_val = ""
             for ptok_type, ptok_string, _, _, _ in tokens:
                 if ptok_type == NEWLINE:
                     is_new_line = True
                     current_line_content += push_val + ' '
+                    # print("currentlinecontent:",current_line_content) # pushx 0xxx
                     instructions[current_ins_address] = current_line_content
                     idx = mapping_push_instruction(current_line_content, current_ins_address, idx, positions, length) if g_src_map else None
                     log.debug(current_line_content)
@@ -325,27 +333,28 @@ def collect_vertices(tokens):
         elif is_new_line is True and tok_type == NUMBER:  # looking for a line number
             last_ins_address = current_ins_address
             try:
-                current_ins_address = int(tok_string)
+                current_ins_address = int(tok_string) # line number(address)
             except ValueError:
                 log.critical("ERROR when parsing row %d col %d", srow, scol)
                 quit()
             is_new_line = False
             if is_new_block:
-                current_block = current_ins_address
+                current_block = current_ins_address # block start address
                 is_new_block = False
             continue
         elif tok_type == NEWLINE:
             is_new_line = True
             log.debug(current_line_content)
-            instructions[current_ins_address] = current_line_content
+            # print("current_line_content:",current_line_content)
+            instructions[current_ins_address] = current_line_content # just operator
             idx = mapping_non_push_instruction(current_line_content, current_ins_address, idx, positions, length) if g_src_map else None
             current_line_content = ""
             continue
-        elif tok_type == NAME:
+        elif tok_type == NAME: # just operator
             if tok_string == "JUMPDEST":
                 if last_ins_address not in end_ins_dict:
-                    end_ins_dict[current_block] = last_ins_address
-                current_block = current_ins_address
+                    end_ins_dict[current_block] = last_ins_address # before?? JUMPDEST address
+                current_block = current_ins_address # JUMPDEST address
                 is_new_block = False
             elif tok_string == "STOP" or tok_string == "RETURN" or tok_string == "SUICIDE" or tok_string == "REVERT" or tok_string == "ASSERTFAIL":
                 jump_type[current_block] = "terminal"
@@ -364,33 +373,46 @@ def collect_vertices(tokens):
         if tok_string != "=" and tok_string != ">":
             current_line_content += tok_string + " "
 
+    '''????do nothing?what to do?'''
     if current_block not in end_ins_dict:
         log.debug("current block: %d", current_block)
         log.debug("last line: %d", current_ins_address)
+        # print("current_block:",current_block)
+        # print("current_ins_address:",current_ins_address)
         end_ins_dict[current_block] = current_ins_address
 
+    '''not defined in jumptype, then default = terminal'''
     if current_block not in jump_type:
         jump_type[current_block] = "terminal"
 
+    '''end block dont have type, default = falls_to'''
     for key in end_ins_dict:
         if key not in jump_type:
             jump_type[key] = "falls_to"
 
+    # for k in instructions.keys():
+    #     print("k:", k, "v:", instructions[k])
+    # for key in end_ins_dict:
+    #     print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
+    #     print("jump_type:",jump_type[key])
 
 def construct_bb():
-    global vertices
+    global vertices # key:begin address, value: BasicBlock(begin,end)
     global edges
-    sorted_addresses = sorted(instructions.keys())
+    sorted_addresses = sorted(instructions.keys()) # sorted operator instruction address
     size = len(sorted_addresses)
     for key in end_ins_dict:
         end_address = end_ins_dict[key]
-        block = BasicBlock(key, end_address)
+        block = BasicBlock(key, end_address) # begin address, end address
+        # print("key:",key,"end_add:",end_address)
         if key not in instructions:
             continue
-        block.add_instruction(instructions[key])
+        block.add_instruction(instructions[key]) # begin instruction
+        # print("ins[key]",instructions[key])
         i = sorted_addresses.index(key) + 1
         while i < size and sorted_addresses[i] <= end_address:
-            block.add_instruction(instructions[sorted_addresses[i]])
+            block.add_instruction(instructions[sorted_addresses[i]]) # add instructions to block
+            # print("ins:",instructions[sorted_addresses[i]])
             i += 1
         block.set_block_type(jump_type[key])
         vertices[key] = block
@@ -410,7 +432,8 @@ def add_falls_to():
         if jump_type[key] != "terminal" and jump_type[key] != "unconditional" and i+1 < length:
             target = key_list[i+1]
             edges[key].append(target)
-            vertices[key].set_falls_to(target)
+            vertices[key].set_falls_to(target) # key:begin address, target: next begin address
+            # print("key:",key,"falls:",target)
 
 
 def get_init_global_state(path_conditions_and_vars):
@@ -531,7 +554,8 @@ def get_start_block_to_func_sig():
             state = 0
             pc = instr.split(' ')[1]
             pc = int(pc, 16)
-            start_block_to_func_sig[pc] = func_sig
+            start_block_to_func_sig[pc] = func_sig  # pc:address, value:sig
+            # print("pc:",pc,"sig:",func_sig)
         else:
             state = 0
     return start_block_to_func_sig
@@ -539,11 +563,11 @@ def get_start_block_to_func_sig():
 def full_sym_exec():
     # executing, starting from beginning
     path_conditions_and_vars = {"path_condition" : []}
-    global_state = get_init_global_state(path_conditions_and_vars)
-    analysis = init_analysis()
-    params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state, analysis=analysis)
+    global_state = get_init_global_state(path_conditions_and_vars)  # global state
+    analysis = init_analysis() # dict
+    params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state, analysis=analysis)  # set attribution
     if g_src_map:
-        start_block_to_func_sig = get_start_block_to_func_sig()
+        start_block_to_func_sig = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
 
@@ -569,28 +593,30 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     calls = params.calls
     overflow_pcs = params.overflow_pcs
 
-    Edge = namedtuple("Edge", ["v1", "v2"]) # Factory Function for tuples is used as dictionary key
-    if block < 0:
+    Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
+    if block < 0:  # jump address, start address
         log.debug("UNKNOWN JUMP ADDRESS. TERMINATING THIS PATH")
         return ["ERROR"]
 
     log.debug("Reach block address %d \n", block)
 
     if g_src_map:
-        if block in start_block_to_func_sig:
-            func_sig = start_block_to_func_sig[block]
-            current_func_name = g_src_map.sig_to_func[func_sig]
+        if block in start_block_to_func_sig:  # function address
+            func_sig = start_block_to_func_sig[block]  # set signature
+            current_func_name = g_src_map.sig_to_func[func_sig]  # set function name
+            # print("current_func_name:", current_func_name)  # func_name(xxx)
             pattern = r'(\w[\w\d_]*)\((.*)\)$'
             match = re.match(pattern, current_func_name)
             if match:
-                current_func_name =  list(match.groups())[0]
+                current_func_name =  list(match.groups())[0]  # just func_name
+                # print("current_func_name:",current_func_name)
 
     current_edge = Edge(pre_block, block)
     if current_edge in visited_edges:
         updated_count_number = visited_edges[current_edge] + 1
-        visited_edges.update({current_edge: updated_count_number})
+        visited_edges.update({current_edge: updated_count_number})  # visited count number
     else:
-        visited_edges.update({current_edge: 1})
+        visited_edges.update({current_edge: 1})  # visited count number
 
     if visited_edges[current_edge] > global_params.LOOP_LIMIT:
         log.debug("Overcome a number of loop limit. Terminating this path ...")
@@ -760,12 +786,12 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             source_code = g_src_map.get_source_code(global_state['pc'])
             source_code = source_code.split("(")[0]
             func_name = source_code.strip()
-            if check_sat(solver, False) != unsat:
+            if check_sat(solver, False) != unsat:  # solver shifou false, give a model
                 model = solver.model()
-            if func_name == "assert":
-                global_problematic_pcs["assertion_failure"].append(Assertion(global_state["pc"], model))
+            if func_name == "assert":  # shifou function assert
+                global_problematic_pcs["assertion_failure"].append(Assertion(global_state["pc"], model))  # pc, model
             elif func_call != -1:
-                global_problematic_pcs["assertion_failure"].append(Assertion(func_call, model))
+                global_problematic_pcs["assertion_failure"].append(Assertion(func_call, model))  # pc, model
         return
 
     # collecting the analysis result by calling this skeletal function
@@ -773,7 +799,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     # since SE will modify the stack and mem
     update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
     if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
-        global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])
+        global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
 
     log.debug("==============================")
     log.debug("EXECUTING: " + instr)
@@ -815,7 +841,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                     solver.push()
                     solver.add(UGT(first, computed))
                     if check_sat(solver) == sat:
-                        global_problematic_pcs['integer_overflow'].append(Overflow(global_state['pc'] - 1, solver.model()))
+                        global_problematic_pcs['integer_overflow'].append(Overflow(global_state['pc'] - 1, solver.model()))  # check interger overflow
                         overflow_pcs.append(global_state['pc'] - 1)
                     solver.pop()
 
@@ -864,7 +890,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                     solver.push()
                     solver.add(UGT(second, first))
                     if check_sat(solver) == sat:
-                        global_problematic_pcs['integer_underflow'].append(Underflow(global_state['pc'] - 1, solver.model()))
+                        global_problematic_pcs['integer_underflow'].append(Underflow(global_state['pc'] - 1, solver.model()))  # check interger overflow
                     solver.pop()
 
             stack.insert(0, computed)
@@ -877,7 +903,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             second = stack.pop(0)
             if isAllReal(first, second):
                 if second == 0:
-                    computed = 0
+                    computed = 0  # div 0 = 0
                 else:
                     first = to_unsigned(first)
                     second = to_unsigned(second)
@@ -2451,7 +2477,7 @@ def run(disasm_file=None, source_file=None, source_map=None):
     global results
 
     g_disasm_file = disasm_file
-    g_source_file = source_file
+    g_source_file = source_file  # source -> source_file
     g_src_map = source_map
 
     if is_testing_evm():
@@ -2461,5 +2487,5 @@ def run(disasm_file=None, source_file=None, source_map=None):
         log.info("\t============ Results ===========")
         analyze()
         ret = detect_vulnerabilities()
-        closing_message()
+        closing_message()  # store result file as json
         return ret

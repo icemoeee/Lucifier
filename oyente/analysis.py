@@ -39,12 +39,16 @@ def display_analysis(analysis):
 def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
     path_condition = path_conditions_and_vars["path_condition"]
     new_path_condition = []
+    # print("path_condition", path_condition)
     for expr in path_condition:
         if not is_expr(expr):
             continue
         list_vars = get_vars(expr)
+        # print("list_vars", list_vars)
         for var in list_vars:
             # check if a var is global
+            # print("var.decl().name()", var.decl().name())
+            # print("isinstance(var, str)",isinstance(var, str))
             if is_storage_var(var):
                 pos = get_storage_position(var)
                 if pos in global_state['Ia']:
@@ -57,6 +61,7 @@ def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
     if global_params.DEBUG_MODE:
         log.info("=>>>>>> New PC: " + str(new_path_condition))
 
+    # print("new_path_condition:",new_path_condition)
     solver = Solver()
     solver.set("timeout", global_params.TIMEOUT)
     solver.add(path_condition)
@@ -169,10 +174,12 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
     if opcode == "CALL":
         recipient = stack[1]
         transfer_amount = stack[2]
+        # print("recipient:", recipient, "transfer_amount:", transfer_amount)
         if isReal(transfer_amount) and transfer_amount == 0:
             return
         if isSymbolic(recipient):
             recipient = simplify(recipient)
+        # print("simplyrecipient:", recipient)
 
         reentrancy_result = check_reentrancy_bug(path_conditions_and_vars, stack, global_state)
         analysis["reentrancy_bug"].append(reentrancy_result)

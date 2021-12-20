@@ -67,10 +67,10 @@ def analyze_bytecode():
     global args
 
     helper = InputHelper(InputHelper.BYTECODE, source=args.source)
-    inp = helper.get_inputs()[0]
+    inp = helper.get_inputs()[0] # contract or disasm
 
     result, exit_code = symExec.run(disasm_file=inp['disasm_file'])
-    helper.rm_tmp_files()
+    helper.rm_tmp_files() # delete tmp file
 
     return exit_code
 
@@ -82,6 +82,7 @@ def run_solidity_analysis(inputs):
         logging.info("contract %s:", inp['contract'])
         result, return_code = symExec.run(disasm_file=inp['disasm_file'], source_map=inp['source_map'], source_file=inp['source'])
 
+        # print(result)
         try:
             c_source = inp['c_source']
             c_name = inp['c_name']
@@ -104,7 +105,7 @@ def analyze_solidity(input_type='solidity'):
         helper = InputHelper(InputHelper.STANDARD_JSON_OUTPUT, source=args.source)
     inputs = helper.get_inputs()
     results, exit_code = run_solidity_analysis(inputs)
-    helper.rm_tmp_files()
+    helper.rm_tmp_files() # delete tmp file
 
     return exit_code
 
@@ -121,10 +122,10 @@ def main():
 
     parser.add_argument("--version", action="version", version="oyente version 0.2.7 - Commonwealth")
 
-    parser.add_argument("-rmp", "--remap",          help="Remap directory paths", action="store", type=str)
+    parser.add_argument("-rmp", "--remap",          help="Remap directory paths.", action="store", type=str)
     parser.add_argument("-t",   "--timeout",        help="Timeout for Z3 in ms.", action="store", type=int)
     parser.add_argument("-gl",  "--gaslimit",       help="Limit Gas", action="store", dest="gas_limit", type=int)
-    parser.add_argument("-rp",   "--root-path",     help="Root directory path used for the online version", action="store", dest="root_path", type=str)
+    parser.add_argument("-rp",   "--root-path",     help="Root directory path used for the online version.", action="store", dest="root_path", type=str)
     parser.add_argument("-ll",  "--looplimit",      help="Limit number of loops", action="store", dest="loop_limit", type=int)
     parser.add_argument("-dl",  "--depthlimit",     help="Limit DFS depth", action="store", dest="depth_limit", type=int)
     parser.add_argument("-ap",  "--allow-paths",    help="Allow a given path for imports", action="store", dest="allow_paths", type=str)
@@ -133,18 +134,18 @@ def main():
     parser.add_argument( "-e",   "--evm",                    help="Do not remove the .evm file.", action="store_true")
     parser.add_argument( "-j",   "--json",                   help="Redirect results to a json file.", action="store_true")
     parser.add_argument( "-p",   "--paths",                  help="Print path condition information.", action="store_true")
-    parser.add_argument( "-db",  "--debug",                  help="Display debug information", action="store_true")
-    parser.add_argument( "-st",  "--state",                  help="Get input state from state.json", action="store_true")
+    parser.add_argument( "-db",  "--debug",                  help="Display debug information.", action="store_true")
+    parser.add_argument( "-st",  "--state",                  help="Get input state from state.json.", action="store_true")
     parser.add_argument( "-r",   "--report",                 help="Create .report file.", action="store_true")
     parser.add_argument( "-v",   "--verbose",                help="Verbose output, print everything.", action="store_true")
-    parser.add_argument( "-pl",  "--parallel",               help="Run Oyente in parallel. Note: The performance may depend on the contract", action="store_true")
+    parser.add_argument( "-pl",  "--parallel",               help="Run Oyente in parallel. Note: The performance may depend on the contract.", action="store_true")
     parser.add_argument( "-b",   "--bytecode",               help="read bytecode in source instead of solidity file.", action="store_true")
     parser.add_argument( "-a",   "--assertion",              help="Check assertion failures.", action="store_true")
-    parser.add_argument( "-sj",  "--standard-json",          help="Support Standard JSON input", action="store_true")
-    parser.add_argument( "-gb",  "--globalblockchain",       help="Integrate with the global ethereum blockchain", action="store_true")
-    parser.add_argument( "-ce",  "--compilation-error",      help="Display compilation errors", action="store_true")
-    parser.add_argument( "-gtc", "--generate-test-cases",    help="Generate test cases each branch of symbolic execution tree", action="store_true")
-    parser.add_argument( "-sjo", "--standard-json-output",   help="Support Standard JSON output", action="store_true")
+    parser.add_argument( "-sj",  "--standard-json",          help="Support Standard JSON input.", action="store_true")
+    parser.add_argument( "-gb",  "--globalblockchain",       help="Integrate with the global ethereum blockchain.", action="store_true")
+    parser.add_argument( "-ce",  "--compilation-error",      help="Display compilation errors.", action="store_true")
+    parser.add_argument( "-gtc", "--generate-test-cases",    help="Generate test cases each branch of symbolic execution tree.", action="store_true")
+    parser.add_argument( "-sjo", "--standard-json-output",   help="Support Standard JSON output.", action="store_true")
 
     args = parser.parse_args()
 
@@ -164,18 +165,18 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    global_params.PRINT_PATHS = 1 if args.paths else 0
-    global_params.REPORT_MODE = 1 if args.report else 0
-    global_params.USE_GLOBAL_BLOCKCHAIN = 1 if args.globalblockchain else 0
-    global_params.INPUT_STATE = 1 if args.state else 0
-    global_params.STORE_RESULT = 1 if args.json else 0
-    global_params.CHECK_ASSERTIONS = 1 if args.assertion else 0
-    global_params.DEBUG_MODE = 1 if args.debug else 0
-    global_params.GENERATE_TEST_CASES = 1 if args.generate_test_cases else 0
-    global_params.PARALLEL = 1 if args.parallel else 0
+    global_params.PRINT_PATHS = 1 if args.paths else 0 # Print path condition information.
+    global_params.REPORT_MODE = 1 if args.report else 0 # Create .report file.
+    global_params.USE_GLOBAL_BLOCKCHAIN = 1 if args.globalblockchain else 0 # Integrate with the global ethereum blockchain
+    global_params.INPUT_STATE = 1 if args.state else 0 # Get input state from state.json
+    global_params.STORE_RESULT = 1 if args.json else 0 # Redirect results to a json file.
+    global_params.CHECK_ASSERTIONS = 1 if args.assertion else 0 # Check assertion failures.
+    global_params.DEBUG_MODE = 1 if args.debug else 0 # Display debug information.
+    global_params.GENERATE_TEST_CASES = 1 if args.generate_test_cases else 0 # Generate test cases each branch of symbolic execution tree.
+    global_params.PARALLEL = 1 if args.parallel else 0 # Run Oyente in parallel. Note: The performance may depend on the contract.
 
     if args.depth_limit:
-        global_params.DEPTH_LIMIT = args.depth_limit
+        global_params.DEPTH_LIMIT = args.depth_limit # Limit DFS depth
     if args.gas_limit:
         global_params.GAS_LIMIT = args.gas_limit
     if args.loop_limit:

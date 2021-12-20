@@ -62,20 +62,22 @@ class InputHelper:
             with open(self.source, 'r') as f:
                 bytecode = f.read()
             self._prepare_disasm_file(self.source, bytecode)
-
+            # you bytecode,chan sheng disasm tmp,then add it to inputs list
             disasm_file = self._get_temporary_files(self.source)['disasm']
             inputs.append({'disasm_file': disasm_file})
         else:
-            contracts = self._get_compiled_contracts()
-            self._prepare_disasm_files_for_analysis(contracts)
+            contracts = self._get_compiled_contracts() # duo contracts
+            self._prepare_disasm_files_for_analysis(contracts) # write tmp file(.evm .disasm)
             for contract, _ in contracts:
+                # print(contract)
                 c_source, cname = contract.split(':')
                 c_source = re.sub(self.root_path, "", c_source)
+                # print(c_source)
                 if self.input_type == InputHelper.SOLIDITY:
                     source_map = SourceMap(contract, self.source, 'solidity', self.root_path, self.remap, self.allow_paths)
                 else:
                     source_map = SourceMap(contract, self.source, 'standard json', self.root_path)
-                disasm_file = self._get_temporary_files(contract)['disasm']
+                disasm_file = self._get_temporary_files(contract)['disasm'] # chan sheng disasm tmp
                 inputs.append({
                     'contract': contract,
                     'source_map': source_map,
