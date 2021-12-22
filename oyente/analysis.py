@@ -21,18 +21,18 @@ def init_analysis():
     analysis = {
         "gas": 0,
         "gas_mem": 0,
-        "money_flow": [("Is", "Ia", "Iv")],  # (source, destination, amount)
-        "reentrancy_bug":[],
-        "money_concurrency_bug": [],
-        "time_dependency_bug": {}
+        # "money_flow": [("Is", "Ia", "Iv")],  # (source, destination, amount)
+        "reentrancy_bug":[]
+        # "money_concurrency_bug": [],
+        # "time_dependency_bug": {}
     }
     return analysis
 
 
 # Money flow: (source, destination, amount)
 
-def display_analysis(analysis):
-    logging.debug("Money flow: " + str(analysis["money_flow"]))
+# def display_analysis(analysis):
+#     logging.debug("Money flow: " + str(analysis["money_flow"]))
 
 # Check if this call has the Reentrancy bug
 # Return true if it does, false otherwise
@@ -184,14 +184,14 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
         reentrancy_result = check_reentrancy_bug(path_conditions_and_vars, stack, global_state)
         analysis["reentrancy_bug"].append(reentrancy_result)
 
-        analysis["money_concurrency_bug"].append(global_state["pc"])
-        analysis["money_flow"].append( ("Ia", str(recipient), str(transfer_amount)))
-    elif opcode == "SUICIDE":
-        recipient = stack[0]
-        if isSymbolic(recipient):
-            recipient = simplify(recipient)
-        analysis['money_concurrency_bug'].append(global_state['pc'])
-        analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
+        # analysis["money_concurrency_bug"].append(global_state["pc"])
+        # analysis["money_flow"].append( ("Ia", str(recipient), str(transfer_amount)))
+    # elif opcode == "SUICIDE":
+    #     recipient = stack[0]
+    #     if isSymbolic(recipient):
+    #         recipient = simplify(recipient)
+        # analysis['money_concurrency_bug'].append(global_state['pc'])
+        # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
 
 # Check if it is possible to execute a path after a previous path
 # Previous path has prev_pc (previous path condition) and set global state variables as in gstate (only storage values)
