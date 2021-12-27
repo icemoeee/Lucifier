@@ -20,7 +20,7 @@ from basicblock import BasicBlock
 from analysis import *
 from test_evm.global_test_params import (TIME_OUT, UNKNOWN_INSTRUCTION,
                                          EXCEPTION, PICKLE_PATH)
-from vulnerability import CallStack, TimeDependency, MoneyConcurrency, Reentrancy, AssertionFailure, ParityMultisigBug2, IntegerUnderflow, IntegerOverflow
+from vulnerability import Reentrancy, AssertionFailure
 import global_params
 
 log = logging.getLogger(__name__)
@@ -2081,42 +2081,42 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
         raise Exception('UNKNOWN INSTRUCTION: ' + opcode)
 
 # Detect if a money flow depends on the timestamp
-def detect_time_dependency():
-    global results
-    global g_src_map
-    global time_dependency
-
-    TIMESTAMP_VAR = "IH_s"
-    is_dependant = False
-    pcs = []
-    if global_params.PRINT_PATHS:
-        log.info("ALL PATH CONDITIONS")
-    for i, cond in enumerate(path_conditions):
-        if global_params.PRINT_PATHS:
-            log.info("PATH " + str(i + 1) + ": " + str(cond))
-        for j, expr in enumerate(cond):
-            if is_expr(expr):
-                if TIMESTAMP_VAR in str(expr) and j in global_problematic_pcs["time_dependency_bug"][i]:
-                    pcs.append(global_problematic_pcs["time_dependency_bug"][i][j])
-                    is_dependant = True
-                    continue
-
-    time_dependency = TimeDependency(g_src_map, pcs)
-
-    if g_src_map:
-        results['vulnerabilities']['time_dependency'] = time_dependency.get_warnings()
-    else:
-        results['vulnerabilities']['time_dependency'] = time_dependency.is_vulnerable()
-    log.info('\t  Timestamp Dependency: \t\t %s', time_dependency.is_vulnerable())
-
-    if global_params.REPORT_MODE:
-        file_name = g_disasm_file.split("/")[len(g_disasm_file.split("/"))-1].split(".")[0]
-        report_file = file_name + '.report'
-        with open(report_file, 'w') as rfile:
-            if is_dependant:
-                rfile.write("yes\n")
-            else:
-                rfile.write("no\n")
+# def detect_time_dependency():
+#     global results
+#     global g_src_map
+#     global time_dependency
+#
+#     TIMESTAMP_VAR = "IH_s"
+#     is_dependant = False
+#     pcs = []
+#     if global_params.PRINT_PATHS:
+#         log.info("ALL PATH CONDITIONS")
+#     for i, cond in enumerate(path_conditions):
+#         if global_params.PRINT_PATHS:
+#             log.info("PATH " + str(i + 1) + ": " + str(cond))
+#         for j, expr in enumerate(cond):
+#             if is_expr(expr):
+#                 if TIMESTAMP_VAR in str(expr) and j in global_problematic_pcs["time_dependency_bug"][i]:
+#                     pcs.append(global_problematic_pcs["time_dependency_bug"][i][j])
+#                     is_dependant = True
+#                     continue
+#
+#     time_dependency = TimeDependency(g_src_map, pcs)
+#
+#     if g_src_map:
+#         results['vulnerabilities']['time_dependency'] = time_dependency.get_warnings()
+#     else:
+#         results['vulnerabilities']['time_dependency'] = time_dependency.is_vulnerable()
+#     log.info('\t  Timestamp Dependency: \t\t %s', time_dependency.is_vulnerable())
+#
+#     if global_params.REPORT_MODE:
+#         file_name = g_disasm_file.split("/")[len(g_disasm_file.split("/"))-1].split(".")[0]
+#         report_file = file_name + '.report'
+#         with open(report_file, 'w') as rfile:
+#             if is_dependant:
+#                 rfile.write("yes\n")
+#             else:
+#                 rfile.write("no\n")
 
 
 # detect if two paths send money to different people
