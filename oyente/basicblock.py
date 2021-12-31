@@ -6,6 +6,7 @@ class BasicBlock:
         self.end = end_address
         self.instructions = []  # each instruction is a string
         self.jump_target = 0
+        self.call_target = 0
 
     def get_start_address(self):
         return self.start
@@ -31,6 +32,15 @@ class BasicBlock:
     def get_falls_to(self):
         return self.falls_to
 
+    def set_call_target(self, address):
+        if isinstance(address, six.integer_types):
+            self.call_target = address
+        else:
+            self.call_target = -1
+
+    def get_call_target(self):
+        return self.call_target
+
     def set_jump_target(self, address):
         if isinstance(address, six.integer_types):
             self.jump_target = address
@@ -51,5 +61,6 @@ class BasicBlock:
         six.print_("start address: %d" % self.start)
         six.print_("end address: %d" % self.end)
         six.print_("end statement type: " + self.type)
+        six.print_("call target: %d" % self.call_target)
         for instr in self.instructions:
             six.print_(instr)

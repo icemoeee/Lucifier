@@ -39,7 +39,8 @@ class Parameter:
             "calls": [],
             "memory": [],
             "visited": [],
-            "overflow_pcs": [],
+            # "overflow_pcs": [],
+            "current_flow":[],
             "mem": {},
             "analysis": {},
             "sha3_list": {},
@@ -120,6 +121,21 @@ def initGlobalVars():
 
     global calls_affect_state
     calls_affect_state = {}
+
+    global call_stack
+    call_stack = []
+
+    global function_stack
+    function_stack = []
+
+    global function_sig_address
+    function_sig_address = {}
+
+    global function_sig_list
+    function_sig_list = []
+
+    global current_flow_dict
+    current_flow_dict = {}
 
     # capturing the last statement of each basic block
     global end_ins_dict
@@ -368,6 +384,10 @@ def collect_vertices(tokens):
                 jump_type[current_block] = "conditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
+            elif tok_string == "CALL":
+                jump_type[current_block] = "call_type"
+                end_ins_dict[current_block] = current_ins_address
+                is_new_block = True
             elif tok_string.startswith('PUSH', 0):
                 wait_for_push = True
             is_new_line = False
@@ -391,11 +411,13 @@ def collect_vertices(tokens):
         if key not in jump_type:
             jump_type[key] = "falls_to"
 
-    # for k in instructions.keys():
-    #     print("k:", k, "v:", instructions[k])
-    # for key in end_ins_dict:
-    #     print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
-    #     print("jump_type:",jump_type[key])
+    for k in instructions.keys():
+        print("k:", k, "v:", instructions[k])
+    for key in end_ins_dict:
+        print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
+        print("jump_type:",jump_type[key])
+
+    print("ending_debug")
 
 def construct_bb():
     global vertices # key:begin address, value: BasicBlock(begin,end)
@@ -555,20 +577,27 @@ def get_start_block_to_func_sig():
             state = 0
             pc = instr.split(' ')[1]
             pc = int(pc, 16)
-            start_block_to_func_sig[pc] = func_sig  # pc:address, value:sig
+            function_sig_address[pc] = func_sig  # pc:address, value:sig
             # print("pc:",pc,"sig:",func_sig)
         else:
             state = 0
-    return start_block_to_func_sig
+    return function_sig_address
 
 def full_sym_exec():
+    global function_sig_address
+    global function_sig_list
+
     # executing, starting from beginning
     path_conditions_and_vars = {"path_condition" : []}
+    # print(g_src_map)
     global_state = get_init_global_state(path_conditions_and_vars)  # global state
     analysis = init_analysis() # dict
     params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state, analysis=analysis)  # set attribution
-    if g_src_map:
-        start_block_to_func_sig = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
+    # if g_src_map:
+    function_sig_address = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
+    print(function_sig_address)
+    function_sig_list = function_sig_address.keys()
+    params.current_flow.append(0)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
 
@@ -582,6 +611,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global all_gs
     global results
     global g_src_map
+    global function_sig_address
+    global function_sig_list
+    global current_flow_dict
 
     visited = params.visited
     stack = params.stack
@@ -592,7 +624,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     path_conditions_and_vars = params.path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
-    overflow_pcs = params.overflow_pcs
+    current_flow = params.current_flow
+    # overflow_pcs = params.overflow_pcs
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
     if block < 0:  # jump address, start address
@@ -602,8 +635,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     log.debug("Reach block address %d \n", block)
 
     if g_src_map:
-        if block in start_block_to_func_sig:  # function address
-            func_sig = start_block_to_func_sig[block]  # set signature
+        if block in function_sig_address:  # function address
+            func_sig = function_sig_address[block]  # set signature
             current_func_name = g_src_map.sig_to_func[func_sig]  # set function name
             # print("current_func_name:", current_func_name)  # func_name(xxx)
             pattern = r'(\w[\w\d_]*)\((.*)\)$'
@@ -656,7 +689,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         global no_of_test_cases
 
         total_no_of_paths += 1
-
+        #update paramas.current_flow
         if global_params.GENERATE_TEST_CASES:
             try:
                 model = solver.model()
@@ -680,6 +713,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         successor = vertices[block].get_jump_target()
         new_params = params.copy()
         new_params.global_state["pc"] = successor
+        new_params.current_flow.append(successor)
         if g_src_map:
             source_code = g_src_map.get_source_code(global_state['pc'])
             if source_code in g_src_map.func_call_names:
@@ -689,6 +723,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         successor = vertices[block].get_falls_to()
         new_params = params.copy()
         new_params.global_state["pc"] = successor
+        new_params.current_flow.append(successor)
         sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
     elif jump_type[block] == "conditional":  # executing "JUMPI"
 
@@ -709,6 +744,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 new_params = params.copy()
                 new_params.global_state["pc"] = left_branch
                 new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
+                current_flow_dict[left_branch]=params.current_flow
+                new_params.current_flow.append(left_branch)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
@@ -736,6 +773,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 right_branch = vertices[block].get_falls_to()
                 new_params = params.copy()
                 new_params.global_state["pc"] = right_branch
+                current_flow_dict[right_branch] = params.current_flow
+                new_params.current_flow.append(right_branch)
                 new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
@@ -748,6 +787,13 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         solver.pop()  # POP SOLVER CONTEXT
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
+    elif jump_type[block] == "call_type":
+        # for(key in target) then sym_exec()
+        successor = vertices[block].get_call_target()
+        new_params = params.copy()
+        new_params.global_state["pc"] = successor
+        new_params.current_flow.append(successor)
+        sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
     else:
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
@@ -764,6 +810,11 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global g_src_map
     global calls_affect_state
     global data_source
+    global function_sig_address
+    global function_sig_list
+    global current_flow_dict
+    global call_stack
+    global function_stack
 
     stack = params.stack
     mem = params.mem
@@ -773,6 +824,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     path_conditions_and_vars = params.path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
+    current_flow = params.current_flow
     # overflow_pcs = params.overflow_pcs
 
     visited_pcs.add(global_state["pc"])
@@ -829,13 +881,13 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 computed = (first + second) % (2 ** 256)
             computed = simplify(computed) if is_expr(computed) else computed
 
-            check_revert = False
-            if jump_type[block] == 'conditional':
-                jump_target = vertices[block].get_jump_target()
-                falls_to = vertices[block].get_falls_to()
-                check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
-                if not check_revert:
-                    check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
+            # check_revert = False
+            # if jump_type[block] == 'conditional':
+            #     jump_target = vertices[block].get_jump_target()
+            #     falls_to = vertices[block].get_falls_to()
+            #     check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
+            #     if not check_revert:
+            #         check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
 
             # if jump_type[block] != 'conditional' or not check_revert:
                 # if not isAllReal(computed, first):
@@ -878,13 +930,13 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 computed = (first - second) % (2 ** 256)
             computed = simplify(computed) if is_expr(computed) else computed
 
-            check_revert = False
-            if jump_type[block] == 'conditional':
-                jump_target = vertices[block].get_jump_target()
-                falls_to = vertices[block].get_falls_to()
-                check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
-                if not check_revert:
-                    check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
+            # check_revert = False
+            # if jump_type[block] == 'conditional':
+            #     jump_target = vertices[block].get_jump_target()
+            #     falls_to = vertices[block].get_falls_to()
+            #     check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
+            #     if not check_revert:
+            #         check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
 
             # if jump_type[block] != 'conditional' or not check_revert:
             #     if not isAllReal(first, second):
@@ -1540,7 +1592,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             no_bytes = stack.pop(0)
             current_miu_i = global_state["miu_i"]
 
-            if isAllReal(address, mem_location, current_miu_i, code_from, no_bytes) and USE_GLOBAL_BLOCKCHAIN:
+            if isAllReal(address, mem_location, current_miu_i, code_from, no_bytes) and global_params.USE_GLOBAL_BLOCKCHAIN:
                 if six.PY2:
                     temp = long(math.ceil((mem_location + no_bytes) / float(32)))
                 else:
@@ -1918,7 +1970,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
 
             if isReal(transfer_amount):
                 if transfer_amount == 0:
-                    stack.insert(0, 1)   # x = 0
+                    stack.insert(0, 1)
                     return
 
             # Let us ignore the call depth
@@ -1930,14 +1982,14 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             if check_sat(solver) == unsat:
                 # this means not enough fund, thus the execution will result in exception
                 solver.pop()
-                stack.insert(0, 0)   # x = 0
+                stack.insert(0, 0)
             else:
                 # the execution is possibly okay
-                stack.insert(0, 1)   # x = 1
+                stack.insert(0, 1)
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
-                last_idx = len(path_conditions_and_vars["path_condition"]) - 1
+                # last_idx = len(path_conditions_and_vars["path_condition"]) - 1
                 # analysis["time_dependency_bug"][last_idx] = global_state["pc"] - 1
                 new_balance_ia = (balance_ia - transfer_amount)
                 global_state["balance"]["Ia"] = new_balance_ia
@@ -1956,7 +2008,8 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                         new_address_name = "concrete_address_" + str(recipient)
                     else:
                         new_address_name = gen.gen_arbitrary_address_var()
-                    old_balance_name = gen.gen_arbitrary_var()
+                    call_stack.append(new_address_name) # concrete_address_ is duoyu
+                    old_balance_name = gen.gen_arbitrary_var() # what's this?
                     old_balance = BitVec(old_balance_name, 256)
                     path_conditions_and_vars[old_balance_name] = old_balance
                     constraint = (old_balance >= 0)
