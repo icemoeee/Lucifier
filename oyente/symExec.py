@@ -626,7 +626,10 @@ def full_sym_exec():
     # print(function_sig_address)
     function_sig_list = list(function_sig_address.keys())
     # print(function_sig_address.keys())
-    call_target = function_sig_list[0]
+    if function_sig_list:
+        call_target = function_sig_list[0]
+    else:
+        call_target = 0
     params.current_flow.append(0)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
@@ -651,6 +654,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global stack_back
     global call_status_stack
     global sstore_flag
+    global flag_Reen
 
     visited = params.visited
     stack = params.stack
@@ -844,6 +848,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 vertices[block].set_call_target(call_target)
                 successor = vertices[block].get_falls_to()
                 call_pc_stack.append(successor)     # successor pc store in stack
+                if call_target in current_flow:
+                    flag_Reen = True
                 new_params = params.copy()
                 new_params.global_state["pc"] = call_target
                 new_params.current_flow.append(call_target)
@@ -851,6 +857,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 call_status_stack.append(True)  # before call
                 sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
                 call_status_stack.pop()     # after call
+                flag_Reen = False
                 sstore_flag = False
                 if index < list_len:
                     call_target = function_sig_list[index + 1]
@@ -937,9 +944,15 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 global_problematic_pcs["assertion_failure"].append(Assertion(func_call, model))  # pc, model
         return
 
+    update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
+    if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+        global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
+        if current_flow not in global_problematic_pcs["reentrancy_cfg"]:
+            global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
+
     if opcode == "CALL":
         target = vertices[block].get_call_target()
-        if target in current_flow:  # it's loop
+        if target in current_flow:  # it's loop         maybe chongfule
             # check current condition can pass function expression
             update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
             if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
