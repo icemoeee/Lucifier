@@ -12,6 +12,7 @@ import time
 import logging
 import six
 from collections import namedtuple
+from constant import *
 from z3 import *
 
 from vargenerator import *
@@ -45,7 +46,8 @@ class Parameter:
             "analysis": {},
             "sha3_list": {},
             "global_state": {},
-            "path_conditions_and_vars": {}
+            "path_conditions_and_vars": {},
+            "new_path_conditions_and_vars": {}
         }
         for (attr, default) in six.iteritems(attr_defaults):
             setattr(self, attr, kwargs.get(attr, default))
@@ -128,6 +130,27 @@ def initGlobalVars():
     global function_stack
     function_stack = []
 
+    global call_target
+    call_target = 0
+
+    global call_pc_stack
+    call_pc_stack = []
+
+    global callLock
+    callLock = True
+
+    global call_status_stack
+    call_status_stack = []
+
+    global sig_const
+    sig_const = ""
+
+    global stack_back
+    stack_back = {}
+
+    global unGaslimitCall
+    unGaslimitCall = False
+
     global function_sig_address
     function_sig_address = {}
 
@@ -171,7 +194,7 @@ def initGlobalVars():
     # store problem pc
     global global_problematic_pcs
     # global_problematic_pcs = {"money_concurrency_bug": [], "reentrancy_bug": [], "time_dependency_bug": [], "assertion_failure": [], "integer_underflow": [], "integer_overflow": []}
-    global_problematic_pcs = {"reentrancy_bug": []}
+    global_problematic_pcs = {"reentrancy_bug": [], "reentrancy_cfg": []}
 
     # store global variables, e.g. storage, balance of all paths
     global all_gs
@@ -586,6 +609,7 @@ def get_start_block_to_func_sig():
 def full_sym_exec():
     global function_sig_address
     global function_sig_list
+    global call_target
 
     # executing, starting from beginning
     path_conditions_and_vars = {"path_condition" : []}
@@ -593,10 +617,13 @@ def full_sym_exec():
     global_state = get_init_global_state(path_conditions_and_vars)  # global state
     analysis = init_analysis() # dict
     params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state, analysis=analysis)  # set attribution
+    params.new_path_conditions_and_vars = params.path_conditions_and_vars   # maybe no use, yifangwanyi
     # if g_src_map:
     function_sig_address = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
-    print(function_sig_address)
-    function_sig_list = function_sig_address.keys()
+    # print(function_sig_address)
+    function_sig_list = list(function_sig_address.keys())
+    # print(function_sig_address.keys())
+    call_target = function_sig_list[0]
     params.current_flow.append(0)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
@@ -614,6 +641,12 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global function_sig_address
     global function_sig_list
     global current_flow_dict
+    global call_target
+    global call_pc_stack
+    global callLock
+    global sig_const
+    global stack_back
+    global call_status_stack
 
     visited = params.visited
     stack = params.stack
@@ -622,6 +655,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
+    new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
     current_flow = params.current_flow
@@ -667,10 +701,14 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     except KeyError:
         log.debug("This path results in an exception, possibly an invalid jump address")
         return ["ERROR"]
-
-    for instr in block_ins:
-        sym_exec_ins(params, block, instr, func_call, current_func_name)
-
+    if jump_type[block] == "call_type":
+        vertices[block].set_call_target(call_target)
+    if sig_const != CONSTANT_CALL_REVERT:
+        for instr in block_ins:
+            sym_exec_ins(params, block, instr, func_call, current_func_name)
+    else:
+        sig_const = CONSTANT_CALL_NORMAL    # huifu sig_const
+        return [CONSTANT_CALL_REVERT]
     # Mark that this basic block in the visited blocks
     visited.append(block)
     depth += 1
@@ -744,9 +782,10 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 new_params = params.copy()
                 new_params.global_state["pc"] = left_branch
                 new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
-                current_flow_dict[left_branch]=params.current_flow
+                new_params.new_path_conditions_and_vars["path_condition"].append(branch_expression)
+                current_flow_dict[left_branch] = params.current_flow
                 new_params.current_flow.append(left_branch)
-                last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
+                # last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
         except TimeoutError:
@@ -776,7 +815,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 current_flow_dict[right_branch] = params.current_flow
                 new_params.current_flow.append(right_branch)
                 new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
-                last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
+                new_params.new_path_conditions_and_vars["path_condition"].append(negated_branch_expression)
+                # last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
                 sym_exec_block(new_params, right_branch, block, depth, func_call, current_func_name)
         except TimeoutError:
@@ -784,16 +824,51 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         except Exception as e:
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
-        solver.pop()  # POP SOLVER CONTEXT
+
+        try:    # ??? make a bug
+            solver.pop()  # POP SOLVER CONTEXT
+        except Exception as e:
+            pass
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
     elif jump_type[block] == "call_type":
         # for(key in target) then sym_exec()
-        successor = vertices[block].get_call_target()
-        new_params = params.copy()
-        new_params.global_state["pc"] = successor
-        new_params.current_flow.append(successor)
-        sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
+        list_len = len(function_sig_list) - 1
+        if callLock:    # first call lock
+            callLock = False
+            for index in function_sig_list:
+                vertices[block].set_call_target(call_target)
+                successor = vertices[block].get_falls_to()
+                call_pc_stack.append(successor)     # successor pc store in stack
+                new_params = params.copy()
+                new_params.global_state["pc"] = call_target
+                new_params.current_flow.append(call_target)
+                new_params.new_path_conditions_and_vars["path_condition"] = []  # just clear at firt call execution
+                call_status_stack.append(True)  # before call
+                sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
+                call_status_stack.pop()     # after call
+                if index < list_len:
+                    call_target = function_sig_list[index + 1]
+                else:
+                    call_target = function_sig_list[0]
+            callLock = True
+            successor = call_pc_stack.pop()
+            params.stack = stack_back[block]
+            params.global_state["pc"] = successor
+            sym_exec_block(params, successor, block, depth, func_call, current_func_name)  # go falls_to
+        else:   # seconds call later
+            vertices[block].set_call_target(call_target)
+            successor = vertices[block].get_falls_to()
+            call_pc_stack.append(successor)     # successor pc store in stack
+            new_params = params.copy()
+            new_params.global_state["pc"] = call_target
+            new_params.current_flow.append(call_target)
+            call_status_stack.append(True)  # before call
+            sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
+            call_status_stack.pop()  # after call
+            params.stack = stack_back[block]
+            params.global_state["pc"] = successor
+            sym_exec_block(params, successor, block, depth, func_call, current_func_name)  # go falls_to
     else:
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
@@ -815,6 +890,12 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global current_flow_dict
     global call_stack
     global function_stack
+    global call_target
+    global call_pc_stack
+    global sig_const
+    global stack_back
+    global call_status_stack
+    global unGaslimitCall
 
     stack = params.stack
     mem = params.mem
@@ -822,10 +903,13 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
+    new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
     current_flow = params.current_flow
     # overflow_pcs = params.overflow_pcs
+
+    flag_Reen = False
 
     visited_pcs.add(global_state["pc"])
 
@@ -847,12 +931,53 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 global_problematic_pcs["assertion_failure"].append(Assertion(func_call, model))  # pc, model
         return
 
+    if opcode == "CALL":
+        target = vertices[block].get_call_target()
+        if target in current_flow:  # it's loop
+            # check current condition can pass function expression
+            update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
+            if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+                global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
+                global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
+            flag_Reen = True
+            pass
+        else:   # new cfg, continue but need check reentrance later
+            # call gas needs to greater than 2300. etc.
+            transfer_amount = stack[2]
+            if isReal(transfer_amount) and transfer_amount == 0:
+                unGaslimitCall = False
+                pass
+            else:
+                new_path_condition = []
+                if isSymbolic(transfer_amount) and is_storage_var(transfer_amount):
+                    pos = get_storage_position(transfer_amount)
+                    if pos in global_state['Ia']:
+                        new_path_condition.append(global_state['Ia'][pos] != 0)
+                if global_params.DEBUG_MODE:
+                    log.info("=>>>>>> New PC: " + str(new_path_condition))
+                solver = Solver()
+                solver.set("timeout", global_params.TIMEOUT)
+                solver.add(new_path_condition)
+                # 2300 is the outgas used by transfer and send.
+                # If outgas > 2300 when using call.gas.value then the contract will be considered to contain reentrancy bug
+                solver.add(stack[0] > 2300)
+                # transfer_amount > deposit_amount => reentrancy
+                solver.add(stack[2] > BitVec('Iv', 256))
+                # if it is not feasible to re-execute the call, its not a bug
+                unGaslimitCall = not (solver.check() == unsat)
+            flag_Reen = False
+            pass
+    if call_status_stack and not flag_Reen and unGaslimitCall:
+        update_analysis_new(analysis, opcode, stack, mem, global_state, new_path_conditions_and_vars, solver)
+        if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+            global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
+            global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
     # collecting the analysis result by calling this skeletal function
     # this should be done before symbolically executing the instruction,
     # since SE will modify the stack and mem
-    update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
-    if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
-        global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
+    # update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
+    # if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+    #     global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
 
     log.debug("==============================")
     log.debug("EXECUTING: " + instr)
@@ -1408,6 +1533,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 new_var_name = gen.gen_arbitrary_var()
                 new_var = BitVec(new_var_name, 256)
                 path_conditions_and_vars[new_var_name] = new_var
+                new_path_conditions_and_vars[new_var_name] = new_var
                 stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
@@ -1430,6 +1556,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 else:
                     new_var = BitVec(new_var_name, 256)
                     path_conditions_and_vars[new_var_name] = new_var
+                    new_path_conditions_and_vars[new_var_name] = new_var
             if isReal(address):
                 hashed_address = "concrete_address_" + str(address)
             else:
@@ -1470,6 +1597,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             else:
                 new_var = BitVec(new_var_name, 256)
                 path_conditions_and_vars[new_var_name] = new_var
+                new_path_conditions_and_vars[new_var_name] = new_var
             stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
@@ -1481,6 +1609,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
         else:
             new_var = BitVec(new_var_name, 256)
             path_conditions_and_vars[new_var_name] = new_var
+            new_path_conditions_and_vars[new_var_name] = new_var
         stack.insert(0, new_var)
     elif opcode == "CALLDATACOPY":  # Copy input data to memory
         #  TODO: Don't know how to simulate this yet
@@ -1534,6 +1663,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 else:
                     new_var = BitVec(new_var_name, 256)
                     path_conditions_and_vars[new_var_name] = new_var
+                    new_path_conditions_and_vars[new_var_name] = new_var
 
                 temp = ((mem_location + no_bytes) / 32) + 1
                 current_miu_i = to_symbolic(current_miu_i)
@@ -1580,6 +1710,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 else:
                     new_var = BitVec(new_var_name, 256)
                     path_conditions_and_vars[new_var_name] = new_var
+                    new_path_conditions_and_vars[new_var_name] = new_var
                 stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
@@ -1612,6 +1743,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 else:
                     new_var = BitVec(new_var_name, 256)
                     path_conditions_and_vars[new_var_name] = new_var
+                    new_path_conditions_and_vars[new_var_name] = new_var
 
                 temp = ((mem_location + no_bytes) / 32) + 1
                 current_miu_i = to_symbolic(current_miu_i)
@@ -1640,6 +1772,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             else:
                 new_var = BitVec(new_var_name, 256)
                 path_conditions_and_vars[new_var_name] = new_var
+                new_path_conditions_and_vars[new_var_name] = new_var
             stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
@@ -1698,6 +1831,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 else:
                     new_var = BitVec(new_var_name, 256)
                     path_conditions_and_vars[new_var_name] = new_var
+                    new_path_conditions_and_vars[new_var_name] = new_var
                 stack.insert(0, new_var)
                 if isReal(address):
                     mem[address] = new_var
@@ -1812,6 +1946,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                     else:
                         new_var = BitVec(new_var_name, 256)
                         path_conditions_and_vars[new_var_name] = new_var
+                        new_path_conditions_and_vars[new_var_name] = new_var
                     stack.insert(0, new_var)
                     if isReal(position):
                         global_state["Ia"][position] = new_var
@@ -1886,6 +2021,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
         new_var_name = gen.gen_gas_var()
         new_var = BitVec(new_var_name, 256)
         path_conditions_and_vars[new_var_name] = new_var
+        new_path_conditions_and_vars[new_var_name] = new_var
         stack.insert(0, new_var)
     elif opcode == "JUMPDEST":
         # Literally do nothing
@@ -1953,11 +2089,24 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     elif opcode == "CALL":
         # TODO: Need to handle miu_i
         if len(stack) > 6:
-            calls.append(global_state["pc"])
-            for call_pc in calls:
-                if call_pc not in calls_affect_state:
-                    calls_affect_state[call_pc] = False
-            global_state["pc"] = global_state["pc"] + 1
+            if flag_Reen:
+                # stop this flow execution
+                # do what? calls and call_pc ? don't know now
+                calls.append(global_state["pc"])
+                for call_pc in calls:
+                    if call_pc not in calls_affect_state:
+                        calls_affect_state[call_pc] = False
+                # successor = call_pc_stack.pop()  # successor
+                # global_state["pc"] = successor    # no use
+                sig_const = CONSTANT_CALL_REVERT
+                pass
+            else:
+                calls.append(global_state["pc"])
+                for call_pc in calls:
+                    if call_pc not in calls_affect_state:
+                        calls_affect_state[call_pc] = False
+                global_state["pc"] = global_state["pc"] + 1
+                sig_const = CONSTANT_CALL_NORMAL
             outgas = stack.pop(0)
             recipient = stack.pop(0)
             transfer_amount = stack.pop(0)
@@ -1968,9 +2117,12 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             # in the paper, it is shaky when the size of data output is
             # min of stack[6] and the | o |
 
+
+
             if isReal(transfer_amount):
                 if transfer_amount == 0:
                     stack.insert(0, 1)
+                    stack_back[block] = stack.copy()
                     return
 
             # Let us ignore the call depth
@@ -1989,6 +2141,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
+                new_path_conditions_and_vars["path_condition"].append(is_enough_fund)
                 # last_idx = len(path_conditions_and_vars["path_condition"]) - 1
                 # analysis["time_dependency_bug"][last_idx] = global_state["pc"] - 1
                 new_balance_ia = (balance_ia - transfer_amount)
@@ -2008,15 +2161,18 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                         new_address_name = "concrete_address_" + str(recipient)
                     else:
                         new_address_name = gen.gen_arbitrary_address_var()
-                    call_stack.append(new_address_name) # concrete_address_ is duoyu
-                    old_balance_name = gen.gen_arbitrary_var() # what's this?
+                    call_stack.append(new_address_name)  # concrete_address_ is duoyu
+                    old_balance_name = gen.gen_arbitrary_var()  # what's this?
                     old_balance = BitVec(old_balance_name, 256)
                     path_conditions_and_vars[old_balance_name] = old_balance
+                    new_path_conditions_and_vars[old_balance_name] = old_balance
                     constraint = (old_balance >= 0)
                     solver.add(constraint)
                     path_conditions_and_vars["path_condition"].append(constraint)
+                    new_path_conditions_and_vars["path_condition"].append(constraint)
                     new_balance = (old_balance + transfer_amount)
                     global_state["balance"][new_address_name] = new_balance
+            stack_back[block] = stack.copy()
         else:
             raise ValueError('STACK underflow')
     elif opcode == "CALLCODE":
@@ -2067,6 +2223,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
+                new_path_conditions_and_vars["path_condition"].append(is_enough_fund)
                 last_idx = len(path_conditions_and_vars["path_condition"]) - 1
                 # analysis["time_dependency_bug"][last_idx] = global_state["pc"] - 1
         else:
@@ -2118,9 +2275,11 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
         old_balance_name = gen.gen_arbitrary_var()
         old_balance = BitVec(old_balance_name, 256)
         path_conditions_and_vars[old_balance_name] = old_balance
+        new_path_conditions_and_vars[old_balance_name] = old_balance
         constraint = (old_balance >= 0)
         solver.add(constraint)
         path_conditions_and_vars["path_condition"].append(constraint)
+        new_path_conditions_and_vars["path_condition"].append(constraint)
         new_balance = (old_balance + transfer_amount)
         global_state["balance"][new_address_name] = new_balance
         # TODO
@@ -2296,12 +2455,14 @@ def detect_reentrancy():
 
     pcs = global_problematic_pcs["reentrancy_bug"]
     reentrancy = Reentrancy(g_src_map, pcs)
+    recfg = global_problematic_pcs["reentrancy_cfg"]
 
     if g_src_map:
         results['vulnerabilities']['reentrancy'] = reentrancy.get_warnings()
     else:
         results['vulnerabilities']['reentrancy'] = reentrancy.is_vulnerable()
     log.info("\t  Re-Entrancy Vulnerability: \t\t %s", reentrancy.is_vulnerable())
+    log.info("\t  Re-Entrancy CFG: \t\t %s", recfg)
 
 # def detect_integer_underflow():
 #     global integer_underflow

@@ -77,6 +77,48 @@ def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
         log.info("Reentrancy_bug? " + str(ret_val))
     return ret_val
 
+def check_reentrancy_bug_new(path_conditions_and_vars, stack, global_state):
+    path_condition = path_conditions_and_vars["path_condition"]
+    new_path_condition = []
+    # print("path_condition", path_condition)
+    for expr in path_condition:
+        if not is_expr(expr):
+            continue
+        list_vars = get_vars(expr)
+        # print("list_vars", list_vars)
+        for var in list_vars:
+            # check if a var is global
+            # print("var.decl().name()", var.decl().name())
+            # print("isinstance(var, str)",isinstance(var, str))
+            if is_storage_var(var):
+                pos = get_storage_position(var)
+                if pos in global_state['Ia']:
+                    new_path_condition.append(var == global_state['Ia'][pos])
+    # TODO:here needs analysis logic to judge storage change?
+    # transfer_amount = stack[2]
+    # if isSymbolic(transfer_amount) and is_storage_var(transfer_amount):
+    #     pos = get_storage_position(transfer_amount)
+    #     if pos in global_state['Ia']:
+    #         new_path_condition.append(global_state['Ia'][pos] != 0)
+    if global_params.DEBUG_MODE:
+        log.info("=>>>>>> New PC: " + str(new_path_condition))
+
+    # print("new_path_condition:",new_path_condition)
+    solver = Solver()
+    solver.set("timeout", global_params.TIMEOUT)
+    solver.add(path_condition)
+    solver.add(new_path_condition)
+    # 2300 is the outgas used by transfer and send.
+    # If outgas > 2300 when using call.gas.value then the contract will be considered to contain reentrancy bug
+    # solver.add(stack[0] > 2300)
+    # transfer_amount > deposit_amount => reentrancy
+    # solver.add(stack[2] > BitVec('Iv', 256))
+    # if it is not feasible to re-execute the call, its not a bug
+    ret_val = not (solver.check() == unsat)
+    if global_params.DEBUG_MODE:
+        log.info("Reentrancy_bug? " + str(ret_val))
+    return ret_val
+
 def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
     gas_increment = get_ins_cost(opcode) # base cost
     gas_memory = analysis["gas_mem"]
@@ -192,6 +234,15 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
     #         recipient = simplify(recipient)
         # analysis['money_concurrency_bug'].append(global_state['pc'])
         # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
+
+def update_analysis_new(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver):
+    gas_increment, gas_memory = calculate_gas(opcode, stack, mem, global_state, analysis, solver)
+    analysis["gas"] += gas_increment
+    analysis["gas_mem"] = gas_memory
+    # need assertfail? these just normal end the path.
+    if opcode in ("RETURN", "STOP"):
+        reentrancy_result = check_reentrancy_bug_new(path_conditions_and_vars, stack, global_state)
+        analysis["reentrancy_bug"].append(reentrancy_result)
 
 # Check if it is possible to execute a path after a previous path
 # Previous path has prev_pc (previous path condition) and set global state variables as in gstate (only storage values)
