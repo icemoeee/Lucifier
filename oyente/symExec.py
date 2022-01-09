@@ -151,6 +151,9 @@ def initGlobalVars():
     global unGaslimitCall
     unGaslimitCall = False
 
+    global sstore_flag
+    sstore_flag = False
+
     global function_sig_address
     function_sig_address = {}
 
@@ -434,13 +437,13 @@ def collect_vertices(tokens):
         if key not in jump_type:
             jump_type[key] = "falls_to"
 
-    for k in instructions.keys():
-        print("k:", k, "v:", instructions[k])
-    for key in end_ins_dict:
-        print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
-        print("jump_type:",jump_type[key])
+    # for k in instructions.keys():
+    #     print("k:", k, "v:", instructions[k])
+    # for key in end_ins_dict:
+    #     print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
+    #     print("jump_type:",jump_type[key])
 
-    print("ending_debug")
+    # print("ending_debug")
 
 def construct_bb():
     global vertices # key:begin address, value: BasicBlock(begin,end)
@@ -647,6 +650,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global sig_const
     global stack_back
     global call_status_stack
+    global sstore_flag
 
     visited = params.visited
     stack = params.stack
@@ -847,6 +851,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 call_status_stack.append(True)  # before call
                 sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
                 call_status_stack.pop()     # after call
+                sstore_flag = False
                 if index < list_len:
                     call_target = function_sig_list[index + 1]
                 else:
@@ -896,6 +901,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global stack_back
     global call_status_stack
     global unGaslimitCall
+    global sstore_flag
 
     stack = params.stack
     mem = params.mem
@@ -938,7 +944,8 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
             if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
                 global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
-                global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
+                if current_flow not in global_problematic_pcs["reentrancy_cfg"]:
+                    global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
             flag_Reen = True
             pass
         else:   # new cfg, continue but need check reentrance later
@@ -968,10 +975,13 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             flag_Reen = False
             pass
     if call_status_stack and not flag_Reen and unGaslimitCall:
+        if opcode == "SSTORE":
+            sstore_flag = True
         update_analysis_new(analysis, opcode, stack, mem, global_state, new_path_conditions_and_vars, solver)
-        if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+        if analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1] and sstore_flag:
             global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
-            global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
+            if current_flow not in global_problematic_pcs["reentrancy_cfg"]:
+                global_problematic_pcs["reentrancy_cfg"].append(current_flow)  # if reentry, store cfg
     # collecting the analysis result by calling this skeletal function
     # this should be done before symbolically executing the instruction,
     # since SE will modify the stack and mem
