@@ -161,7 +161,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                     storage_value = global_state["Ia"][str(stack[0])]
                 solver.push()
                 solver.add(Not( And(storage_value == 0, stack[1] != 0) ))
-                if solver.check() == unsat:
+                if check_sat(solver) == unsat:
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
