@@ -39,7 +39,8 @@ class Parameter:
             "calls": [],
             "memory": [],
             "visited": [],
-            "overflow_pcs": [],
+            "current_flow": [],
+            # "overflow_pcs": [],
             "mem": {},
             "analysis": {},
             "sha3_list": {},
@@ -120,6 +121,30 @@ def initGlobalVars():
 
     global calls_affect_state
     calls_affect_state = {}
+
+    global call_flag    #   call continue
+    call_flag = False
+
+    global call_type_flag   #   if there is a call instruction
+    call_type_flag = False
+
+    global call_pc_stack    # next call pc pushed in this stack
+    call_pc_stack = []
+
+    global current_flow_dict
+    current_flow_dict = {}
+
+    global function_sig_list
+    function_sig_list = []
+
+    global call_target
+    call_target = 0
+
+    global function_sig_address
+    function_sig_address = {}
+
+    global sstore_flag
+    sstore_flag = False
 
     # capturing the last statement of each basic block
     global end_ins_dict
@@ -368,6 +393,10 @@ def collect_vertices(tokens):
                 jump_type[current_block] = "conditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
+            elif tok_string == "CALL":
+                jump_type[current_block] = "call_type"
+                end_ins_dict[current_block] = current_ins_address
+                is_new_block = True
             elif tok_string.startswith('PUSH', 0):
                 wait_for_push = True
             is_new_line = False
@@ -562,13 +591,28 @@ def get_start_block_to_func_sig():
     return start_block_to_func_sig
 
 def full_sym_exec():
+    global function_sig_address
+    global function_sig_list
+    global call_target
+
     # executing, starting from beginning
-    path_conditions_and_vars = {"path_condition" : []}
+    path_conditions_and_vars = {"path_condition": []}
+    # print(g_src_map)
     global_state = get_init_global_state(path_conditions_and_vars)  # global state
-    analysis = init_analysis() # dict
-    params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state, analysis=analysis)  # set attribution
-    if g_src_map:
-        start_block_to_func_sig = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
+    analysis = init_analysis()  # dict
+    params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state,
+                       analysis=analysis)  # set attribution
+    # params.new_path_conditions_and_vars = params.path_conditions_and_vars  # maybe no use, yifangwanyi
+    # if g_src_map:
+    function_sig_address = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
+    # print(function_sig_address)
+    function_sig_list = list(function_sig_address.keys())
+    # print(function_sig_address.keys())
+    if function_sig_list:
+        call_target = function_sig_list[0]
+    else:
+        call_target = 0
+    params.current_flow.append(0)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
 
@@ -582,6 +626,18 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global all_gs
     global results
     global g_src_map
+    global function_sig_address
+    global function_sig_list
+    global current_flow_dict
+    global call_target
+    global call_pc_stack
+    # global callLock
+    # global sig_const
+    # global stack_back
+    # global call_status_stack
+    global sstore_flag
+    global call_type_flag
+    global call_flag
 
     visited = params.visited
     stack = params.stack
@@ -590,9 +646,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
+    # new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
-    overflow_pcs = params.overflow_pcs
+    current_flow = params.current_flow
+    # overflow_pcs = params.overflow_pcs
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
     if block < 0:  # jump address, start address
@@ -602,14 +660,14 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     log.debug("Reach block address %d \n", block)
 
     if g_src_map:
-        if block in start_block_to_func_sig:  # function address
-            func_sig = start_block_to_func_sig[block]  # set signature
+        if block in function_sig_address:  # function address
+            func_sig = function_sig_address[block]  # set signature
             current_func_name = g_src_map.sig_to_func[func_sig]  # set function name
             # print("current_func_name:", current_func_name)  # func_name(xxx)
             pattern = r'(\w[\w\d_]*)\((.*)\)$'
             match = re.match(pattern, current_func_name)
             if match:
-                current_func_name =  list(match.groups())[0]  # just func_name
+                current_func_name = list(match.groups())[0]  # just func_name
                 # print("current_func_name:",current_func_name)
 
     current_edge = Edge(pre_block, block)
@@ -764,6 +822,20 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global g_src_map
     global calls_affect_state
     global data_source
+    global function_sig_address
+    global function_sig_list
+    global current_flow_dict
+    # global call_stack
+    # global function_stack
+    global call_target
+    global call_pc_stack
+    # global sig_const
+    # global stack_back
+    # global call_status_stack
+    # global unGaslimitCall
+    global sstore_flag
+    global call_type_flag
+    global call_flag
 
     stack = params.stack
     mem = params.mem
@@ -771,8 +843,10 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
+    # new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
+    current_flow = params.current_flow
     # overflow_pcs = params.overflow_pcs
 
     visited_pcs.add(global_state["pc"])
@@ -1540,7 +1614,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             no_bytes = stack.pop(0)
             current_miu_i = global_state["miu_i"]
 
-            if isAllReal(address, mem_location, current_miu_i, code_from, no_bytes) and USE_GLOBAL_BLOCKCHAIN:
+            if isAllReal(address, mem_location, current_miu_i, code_from, no_bytes) and global_params.USE_GLOBAL_BLOCKCHAIN:
                 if six.PY2:
                     temp = long(math.ceil((mem_location + no_bytes) / float(32)))
                 else:
