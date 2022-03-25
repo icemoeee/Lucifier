@@ -77,6 +77,71 @@ def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
         log.info("Reentrancy_bug? " + str(ret_val))
     return ret_val
 
+
+def check_dw_reentry(storage_backup, final_storage):
+    ret = False
+    # solver = Solver()
+    for key in final_storage.keys():
+        if key in storage_backup.keys():
+            # solver.add(storage_backup[key] == final_storage[key])
+            # print("simplify(storage_backup[key]):",simplify(storage_backup[key]))
+            # print("isallreal:",isAllReal(storage_backup[key],final_storage[key]),"TorF:",(storage_backup[key] != final_storage[key]))
+            # print("typeA:",type(storage_backup[key]),"typeB:",type(final_storage[key]))
+            if isAllReal(storage_backup[key],final_storage[key]):
+                ret = ret or (storage_backup[key] != final_storage[key])
+                # print("YYY",ret)
+            else:
+                if isReal(storage_backup[key]):
+                    va = to_symbolic(storage_backup[key])
+                else:
+                    va = storage_backup[key]
+                if isReal(final_storage[key]):
+                    vb = to_symbolic(final_storage[key])
+                else:
+                    vb = final_storage[key]
+                ret = ret or (str(simplify(va)) != str(simplify(vb)))
+                # print("ZZZ:",str(simplify(va)) != str(simplify(vb)))
+        else:
+            ret = True
+    # print("ret:",ret)
+    return ret
+
+def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, path_index):
+    path_condition = path_conditions_and_vars["path_condition"]
+    tmp_dict = {}
+    for expr in path_condition:
+        if not is_expr(expr):
+            continue
+        list_vars = get_vars(expr)
+        # print("list_vars", list_vars)
+        for var in list_vars:
+            # check if a var is global
+            if is_storage_var(var):
+                pos = get_storage_position(var)
+                if pos in global_state['Ia']:
+                    tmp_dict.update({pos: var})
+    storage_dict_kv.update({path_index: tmp_dict})
+
+
+def check_sr_reentry(address, call_result_list, current_flow, storage_dict_kv):
+    for item in call_result_list:
+        if list_to_str(item["current_flow"]) in list_to_str(current_flow):
+            path = item["path_index"]
+            storage_kv = storage_dict_kv[path]
+            if isReal(address):
+                if address in storage_kv.keys():
+                    # print("reentry")
+                    # analysis["reentrancy_bug"].append(True)
+                    return True
+            else:
+                if str(address) in storage_kv.keys():
+                    # print("reentry")
+                    # analysis["reentrancy_bug"].append(True)
+                    return True
+            # break
+    return False
+
+
 def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
     gas_increment = get_ins_cost(opcode) # base cost
     gas_memory = analysis["gas_mem"]
@@ -171,27 +236,38 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
     analysis["gas"] += gas_increment
     analysis["gas_mem"] = gas_memory
 
-    if opcode == "CALL":
-        recipient = stack[1]
-        transfer_amount = stack[2]
-        # print("recipient:", recipient, "transfer_amount:", transfer_amount)
-        if isReal(transfer_amount) and transfer_amount == 0:
-            return
-        if isSymbolic(recipient):
-            recipient = simplify(recipient)
-        # print("simplyrecipient:", recipient)
-
-        reentrancy_result = check_reentrancy_bug(path_conditions_and_vars, stack, global_state)
-        analysis["reentrancy_bug"].append(reentrancy_result)
-
-        # analysis["money_concurrency_bug"].append(global_state["pc"])
-        # analysis["money_flow"].append( ("Ia", str(recipient), str(transfer_amount)))
+    # if opcode == "CALL":
+    #     recipient = stack[1]
+    #     transfer_amount = stack[2]
+    #     # print("recipient:", recipient, "transfer_amount:", transfer_amount)
+    #     if isReal(transfer_amount) and transfer_amount == 0:
+    #         return
+    #     if isSymbolic(recipient):
+    #         recipient = simplify(recipient)
+    #     # print("simplyrecipient:", recipient)
+    #
+    #     # reentrancy_result = check_reentrancy_bug(path_conditions_and_vars, stack, global_state)
+    #     # analysis["reentrancy_bug"].append(reentrancy_result)
+    #
+    #     # analysis["money_concurrency_bug"].append(global_state["pc"])
+    #     # analysis["money_flow"].append( ("Ia", str(recipient), str(transfer_amount)))
     # elif opcode == "SUICIDE":
     #     recipient = stack[0]
     #     if isSymbolic(recipient):
     #         recipient = simplify(recipient)
         # analysis['money_concurrency_bug'].append(global_state['pc'])
         # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
+
+def analysis_call(path_conditions_and_vars, outgas):
+    solver = Solver()
+    solver.set("timeout", global_params.TIMEOUT)
+    # 2300 is the outgas used by transfer and send.
+    # If outgas > 2300 when using call.gas.value then the contract will be considered to contain reentrancy bug
+    ret = str(outgas).find("2300")
+    constraint = (outgas > 2300)
+    path_conditions_and_vars["path_condition"].append(constraint)
+    # if -1, it's unsafe call
+    return ret == -1
 
 # Check if it is possible to execute a path after a previous path
 # Previous path has prev_pc (previous path condition) and set global state variables as in gstate (only storage values)

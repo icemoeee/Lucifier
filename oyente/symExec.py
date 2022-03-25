@@ -13,7 +13,8 @@ import logging
 import six
 from collections import namedtuple
 from z3 import *
-
+from utils import *
+from constant import *
 from vargenerator import *
 from ethereum_data import *
 from basicblock import BasicBlock
@@ -31,6 +32,10 @@ CONSTANT_ONES_159 = BitVecVal((1 << 160) - 1, 256)
 Assertion = namedtuple('Assertion', ['pc', 'model'])
 Underflow = namedtuple('Underflow', ['pc', 'model'])
 Overflow = namedtuple('Overflow', ['pc', 'model'])
+class Global_Flags:
+    call_flag = CONSTANT_UNLOCK
+    sstore_flag = CONSTANT_UNLOCK
+    path_index = 0
 
 class Parameter:
     def __init__(self, **kwargs):
@@ -40,12 +45,13 @@ class Parameter:
             "memory": [],
             "visited": [],
             "current_flow": [],
-            # "overflow_pcs": [],
+            "reentry_key_pcs": [],
             "mem": {},
             "analysis": {},
             "sha3_list": {},
             "global_state": {},
-            "path_conditions_and_vars": {}
+            "path_conditions_and_vars": {},
+            "new_path_conditions_and_vars": {}
         }
         for (attr, default) in six.iteritems(attr_defaults):
             setattr(self, attr, kwargs.get(attr, default))
@@ -122,14 +128,32 @@ def initGlobalVars():
     global calls_affect_state
     calls_affect_state = {}
 
-    global call_flag    #   call continue
-    call_flag = False
-
-    global call_type_flag   #   if there is a call instruction
-    call_type_flag = False
-
     global call_pc_stack    # next call pc pushed in this stack
     call_pc_stack = []
+
+    global params_backup    #   backup params
+    params_backup = {}
+
+    global storage_backup
+    storage_backup = {}
+
+    global storage_dict_kv  # 在new_path中出现过的
+    storage_dict_kv = {}
+
+    global path_con_dict    #存new_path_condition的路径和条件
+    path_con_dict = {}
+
+    global path_dict_to_list  # 路径和list序号的对应，key是list序号，value是路径
+    path_dict_to_list = {}
+
+    global storage_dict
+    storage_dict = {}
+
+    global unsafecall_affect_list
+    unsafecall_affect_list = []
+
+    global call_result_list  # 记录当前路径call结果
+    call_result_list = []
 
     global current_flow_dict
     current_flow_dict = {}
@@ -143,8 +167,8 @@ def initGlobalVars():
     global function_sig_address
     function_sig_address = {}
 
-    global sstore_flag
-    sstore_flag = False
+    # global sstore_flag
+    # sstore_flag = CONSTANT_UNLOCK
 
     # capturing the last statement of each basic block
     global end_ins_dict
@@ -601,7 +625,7 @@ def full_sym_exec():
     global_state = get_init_global_state(path_conditions_and_vars)  # global state
     analysis = init_analysis()  # dict
     params = Parameter(path_conditions_and_vars=path_conditions_and_vars, global_state=global_state,
-                       analysis=analysis)  # set attribution
+                       analysis=analysis, new_path_conditions_and_vars=path_conditions_and_vars)  # set attribution
     # params.new_path_conditions_and_vars = params.path_conditions_and_vars  # maybe no use, yifangwanyi
     # if g_src_map:
     function_sig_address = get_start_block_to_func_sig()  # get function signature(key:pc address, value:signature value)
@@ -635,9 +659,17 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     # global sig_const
     # global stack_back
     # global call_status_stack
-    global sstore_flag
-    global call_type_flag
-    global call_flag
+    # global sstore_flag
+    global recall_flag
+    # global call_flag
+    global storage_dict_kv
+    global path_con_dict
+    global path_dict_to_list
+    global storage_dict
+    # global path_index
+    global call_result_list
+    global params_backup
+    global unsafecall_affect_list
 
     visited = params.visited
     stack = params.stack
@@ -646,10 +678,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
-    # new_path_conditions_and_vars = params.new_path_conditions_and_vars
+    new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
     current_flow = params.current_flow
+    reentry_key_pcs = params.reentry_key_pcs
     # overflow_pcs = params.overflow_pcs
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
@@ -694,7 +727,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         return ["ERROR"]
 
     for instr in block_ins:
-        sym_exec_ins(params, block, instr, func_call, current_func_name)
+        sym_exec_ins(params, block, depth, instr, func_call, current_func_name)
 
     # Mark that this basic block in the visited blocks
     visited.append(block)
@@ -738,6 +771,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         successor = vertices[block].get_jump_target()
         new_params = params.copy()
         new_params.global_state["pc"] = successor
+        new_params.current_flow.append(successor)
         if g_src_map:
             source_code = g_src_map.get_source_code(global_state['pc'])
             if source_code in g_src_map.func_call_names:
@@ -747,6 +781,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         successor = vertices[block].get_falls_to()
         new_params = params.copy()
         new_params.global_state["pc"] = successor
+        new_params.current_flow.append(successor)
         sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
     elif jump_type[block] == "conditional":  # executing "JUMPI"
 
@@ -767,8 +802,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 new_params = params.copy()
                 new_params.global_state["pc"] = left_branch
                 new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
+                if isLockVar(Global_Flags.call_flag): #in call
+                    new_params.new_path_conditions_and_vars["path_condition"].append(branch_expression)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
+                new_params.current_flow.append(left_branch)
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
         except TimeoutError:
             raise
@@ -795,8 +833,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 new_params = params.copy()
                 new_params.global_state["pc"] = right_branch
                 new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
+                if isLockVar(Global_Flags.call_flag): #in call
+                    new_params.new_path_conditions_and_vars["path_condition"].append(negated_branch_expression)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
+                new_params.current_flow.append(right_branch)
                 sym_exec_block(new_params, right_branch, block, depth, func_call, current_func_name)
         except TimeoutError:
             raise
@@ -806,6 +847,24 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         solver.pop()  # POP SOLVER CONTEXT
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
+    elif jump_type[block] == "call_type":
+        successor = vertices[block].get_falls_to()
+        if isUnlockVar(Global_Flags.call_flag):
+            new_params = params_backup[block]
+            new_params.global_state["pc"] = successor
+            for i in range(Global_Flags.path_index):  # 几个stop结果就几个顺序执行
+                new_params.global_state["Ia"] = call_result_list[i]["storage"]
+                new_params.sha3_list = call_result_list[i]["sha3_list"]
+                new_params.current_flow = call_result_list[i]["current_flow"]
+                new_params.reentry_key_pcs = call_result_list[i]["reentry_key_pcs"]
+                new_params.current_flow.append(successor)
+                sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+        else:
+            new_params = params.copy()
+            new_params.global_state["pc"] = successor
+            new_params.current_flow.append(successor)
+            sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+
     else:
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
@@ -813,7 +872,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
 
 
 # Symbolically executing an instruction
-def sym_exec_ins(params, block, instr, func_call, current_func_name):
+def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     global MSIZE
     global visited_pcs
     global solver
@@ -833,9 +892,18 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     # global stack_back
     # global call_status_stack
     # global unGaslimitCall
-    global sstore_flag
-    global call_type_flag
-    global call_flag
+    # global sstore_flag
+    global recall_flag
+    # global call_flag
+    global params_backup
+    global storage_backup
+    global storage_dict_kv
+    global path_con_dict
+    global path_dict_to_list
+    global storage_dict
+    # global path_index
+    global call_result_list
+    global unsafecall_affect_list
 
     stack = params.stack
     mem = params.mem
@@ -843,10 +911,11 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     global_state = params.global_state
     sha3_list = params.sha3_list
     path_conditions_and_vars = params.path_conditions_and_vars
-    # new_path_conditions_and_vars = params.new_path_conditions_and_vars
+    new_path_conditions_and_vars = params.new_path_conditions_and_vars
     analysis = params.analysis
     calls = params.calls
     current_flow = params.current_flow
+    reentry_key_pcs = params.reentry_key_pcs
     # overflow_pcs = params.overflow_pcs
 
     visited_pcs.add(global_state["pc"])
@@ -873,8 +942,8 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     # this should be done before symbolically executing the instruction,
     # since SE will modify the stack and mem
     update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
-    if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
-        global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
+    # if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
+    #     global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
 
     log.debug("==============================")
     log.debug("EXECUTING: " + instr)
@@ -883,6 +952,33 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
     #  0s: Stop and Arithmetic Operations
     #
     if opcode == "STOP":
+        if isLockVar(Global_Flags.call_flag):  # 在call途中
+            update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
+            ret = check_dw_reentry(storage_backup, global_state['Ia'])
+            if ret:
+                # for callpc in unsafecall_affect_list:
+                #     if callpc in params.reentry_key_pcs:
+                #         analysis["reentrancy_bug"].append(True)
+                #         if [callpc] not in global_problematic_pcs["reentrancy_bug"]:
+                #             global_problematic_pcs["reentrancy_bug"].append([callpc])
+                #         break
+                analysis["reentrancy_bug"].append(True)
+                global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
+                # reentry_key_pcs.append(global_state["pc"])
+                # if reentry_key_pcs not in global_problematic_pcs["reentrancy_bug"]:
+                # global_problematic_pcs["reentrancy_bug"].append(unsafecall_affect_list[-1])
+                # print('analysis:',analysis["reentrancy_bug"])
+            # 记录当前路径结果call_result_list
+            call_result={}
+            call_result["path_index"] = Global_Flags.path_index
+            call_result["storage"] = global_state['Ia']
+            call_result["current_flow"] = current_flow
+            call_result["reentry_key_pcs"] = reentry_key_pcs
+            call_result["sha3_list"] = sha3_list
+            call_result_list.append(call_result)
+            # update path
+            Global_Flags.path_index += 1
+
         global_state["pc"] = global_state["pc"] + 1
         return
     elif opcode == "ADD":
@@ -1846,7 +1942,7 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
         if len(stack) > 1:
             for call_pc in calls:
                 calls_affect_state[call_pc] = True
-            global_state["pc"] = global_state["pc"] + 1
+            # global_state["pc"] = global_state["pc"] + 1
             stored_address = stack.pop(0)
             stored_value = stack.pop(0)
             if isReal(stored_address):
@@ -1855,6 +1951,19 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             else:
                 # note that the stored_value could be unknown
                 global_state["Ia"][str(stored_address)] = stored_value
+
+            if isUnlockVar(Global_Flags.call_flag): # 不在call途中
+                ret = check_sr_reentry(stored_address, call_result_list, current_flow, storage_dict_kv)
+                if ret:
+                    # for callpc in unsafecall_affect_list:
+                    #     if callpc in current_flow:
+                    #         analysis["reentrancy_bug"].append(True)
+                    #         break
+                    analysis["reentrancy_bug"].append(True)
+                    reentry_key_pcs.append(global_state["pc"])
+                    global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
+                    # print(global_problematic_pcs["reentrancy_bug"])
+            global_state["pc"] = global_state["pc"] + 1
         else:
             raise ValueError('STACK underflow')
     elif opcode == "JUMP":
@@ -1974,12 +2083,22 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             raise ValueError('STACK underflow')
     elif opcode == "CALL":
         # TODO: Need to handle miu_i
+        # global_state_back[global_state["pc"]] = custom_deepcopy(global_state)
+        # vertices[block].set_call_target(call_target)
+        # successor = vertices[block].get_falls_to()
+        # new_params = params.copy()
+        # new_params.global_state["pc"] = call_target
+        # new_params.current_flow.append(call_target)
+        # sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
+        global flag_judge
+        flag_judge = True
         if len(stack) > 6:
+        #         storage_backup = custom_deepcopy(global_state["Ia"])
             calls.append(global_state["pc"])
             for call_pc in calls:
                 if call_pc not in calls_affect_state:
                     calls_affect_state[call_pc] = False
-            global_state["pc"] = global_state["pc"] + 1
+            # global_state["pc"] = global_state["pc"] + 1
             outgas = stack.pop(0)
             recipient = stack.pop(0)
             transfer_amount = stack.pop(0)
@@ -1992,7 +2111,9 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
 
             if isReal(transfer_amount):
                 if transfer_amount == 0:
-                    stack.insert(0, 1)   # x = 0
+                    stack.insert(0, 1)
+                    # add call judge here ----- means can not call
+                    flag_judge = False
                     return
 
             # Let us ignore the call depth
@@ -2000,14 +2121,17 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             is_enough_fund = (transfer_amount <= balance_ia)
             solver.push()
             solver.add(is_enough_fund)
+            # print("is_enough_fund:",is_enough_fund)
 
             if check_sat(solver) == unsat:
                 # this means not enough fund, thus the execution will result in exception
                 solver.pop()
-                stack.insert(0, 0)   # x = 0
+                stack.insert(0, 0)
+                flag_judge = False
             else:
                 # the execution is possibly okay
-                stack.insert(0, 1)   # x = 1
+                stack.insert(0, 1)
+                flag_judge = True
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
@@ -2020,6 +2144,8 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                 boolean_expression = (recipient != address_is)
                 solver.push()
                 solver.add(boolean_expression)
+                # print("transfer_amount:",transfer_amount,"balance_ia:",balance_ia)
+                # print("boolean_expression:",boolean_expression)
                 if check_sat(solver) == unsat:
                     solver.pop()
                     new_balance_is = (global_state["balance"]["Is"] + transfer_amount)
@@ -2038,6 +2164,31 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
                     path_conditions_and_vars["path_condition"].append(constraint)
                     new_balance = (old_balance + transfer_amount)
                     global_state["balance"][new_address_name] = new_balance
+            # call judge ---- means call success
+            if flag_judge:
+                unsafecall = analysis_call(path_conditions_and_vars, outgas)
+                if unsafecall:   # is not safe call and call success
+                    reentry_key_pcs.append(global_state["pc"])
+                    if isUnlockVar(Global_Flags.call_flag):  # unlock就有跳转，否则没有跳转
+                        Global_Flags.call_flag = lock_var(Global_Flags.call_flag)
+                        if global_state["pc"] not in unsafecall_affect_list:
+                            unsafecall_affect_list.append(global_state["pc"])
+                        params_backup[block] = params.copy()  # global params backup
+                        storage_backup = global_state["Ia"]  # storage backup
+                        for func_addr in function_sig_list:
+                            call_target = func_addr
+                            vertices[block].set_call_target(call_target)
+                            # successor = vertices[block].get_falls_to()
+                            new_params = params.copy()
+                            new_params.global_state["pc"] = call_target
+                            new_params.current_flow.append(call_target)
+                            reentry_key_pcs.append(call_target)
+                            new_params.reentry_key_pcs = reentry_key_pcs
+                            sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)  # 跳转
+
+                        Global_Flags.call_flag = unlock_var(Global_Flags.call_flag)
+                    pass
+            global_state["pc"] = global_state["pc"] + 1
         else:
             raise ValueError('STACK underflow')
     elif opcode == "CALLCODE":
@@ -2115,12 +2266,45 @@ def sym_exec_ins(params, block, instr, func_call, current_func_name):
             stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
-    elif opcode in ("RETURN", "REVERT"):
+    elif opcode == "RETURN":
         # TODO: Need to handle miu_i
         if len(stack) > 1:
-            if opcode == "REVERT":
-                # revertible_overflow_pcs.update(overflow_pcs)
-                global_state["pc"] = global_state["pc"] + 1
+            stack.pop(0)
+            stack.pop(0)
+            # TODO
+            if isLockVar(Global_Flags.call_flag):  # 在call途中
+                update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
+                ret = check_dw_reentry(storage_backup, global_state['Ia'])
+                if ret:
+                    # for callpc in unsafecall_affect_list:
+                    #     if callpc in current_flow:
+                    #         analysis["reentrancy_bug"].append(True)
+                    #         if [callpc] not in global_problematic_pcs["reentrancy_bug"]:
+                    #             global_problematic_pcs["reentrancy_bug"].append([callpc])
+                    #         break
+                    analysis["reentrancy_bug"].append(True)
+                    global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
+                    # reentry_key_pcs.append(global_state["pc"])
+                    # if reentry_key_pcs not in global_problematic_pcs["reentrancy_bug"]:
+                    # global_problematic_pcs["reentrancy_bug"].append(unsafecall_affect_list[-1])
+                    # print('analysis:',analysis["reentrancy_bug"])
+                # 记录当前路径结果call_result_list
+                call_result = {}
+                call_result["path_index"] = Global_Flags.path_index
+                call_result["storage"] = global_state['Ia']
+                call_result["current_flow"] = current_flow
+                call_result["reentry_key_pcs"] = reentry_key_pcs
+                call_result["sha3_list"] = sha3_list
+                call_result_list.append(call_result)
+                # update path
+                Global_Flags.path_index += 1
+            pass
+        else:
+            raise ValueError('STACK underflow')
+    elif opcode == "REVERT":
+        # TODO: Need to handle miu_i
+        if len(stack) > 1:
+            global_state["pc"] = global_state["pc"] + 1
             stack.pop(0)
             stack.pop(0)
             # TODO
@@ -2315,14 +2499,18 @@ def detect_reentrancy():
     global results
     global reentrancy
 
-    pcs = global_problematic_pcs["reentrancy_bug"]
-    reentrancy = Reentrancy(g_src_map, pcs)
+    # print("rb:",global_problematic_pcs["reentrancy_bug"])
+    final_p = extract_list_max(global_problematic_pcs["reentrancy_bug"])
+    # print("fp:", final_p)
+    for list_path in final_p:
+        pcs = list_path
+        reentrancy = Reentrancy(g_src_map, pcs)
 
-    if g_src_map:
-        results['vulnerabilities']['reentrancy'] = reentrancy.get_warnings()
-    else:
-        results['vulnerabilities']['reentrancy'] = reentrancy.is_vulnerable()
-    log.info("\t  Re-Entrancy Vulnerability: \t\t %s", reentrancy.is_vulnerable())
+        if g_src_map:
+            results['vulnerabilities']['reentrancy'] = reentrancy.get_warnings()
+        else:
+            results['vulnerabilities']['reentrancy'] = reentrancy.is_vulnerable()
+        log.info("\t  Re-Entrancy Vulnerability: \t\t %s", reentrancy.is_vulnerable())
 
 # def detect_integer_underflow():
 #     global integer_underflow

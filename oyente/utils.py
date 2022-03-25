@@ -14,6 +14,7 @@ import difflib
 import six
 from z3 import *
 from z3.z3util import get_vars
+from constant import *
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -300,3 +301,52 @@ def run_command_with_err(cmd):
     err = err.decode('utf-8', 'strict')
     return out, err
 
+
+def lock_var(var):
+    if var == CONSTANT_UNLOCK:
+        var = CONSTANT_LOCK
+    return var
+
+
+def unlock_var(var):
+    if var == CONSTANT_LOCK:
+        var = CONSTANT_UNLOCK
+    return var
+
+
+def isLockVar(var):
+    return var == CONSTANT_LOCK
+
+
+def isUnlockVar(var):
+    return var == CONSTANT_UNLOCK
+
+
+def list_to_str(list_var):
+    return str(list_var).lstrip("[").rstrip("]")
+
+
+def is_sub_list(listA, listB):
+    a = list_to_str(listA)
+    b = list_to_str(listB)
+    return b.find(a) != -1
+
+
+def extract_list_max(listA):
+    b = []
+    lenth = len(listA)
+    for m in range(lenth):
+        m = listA.pop()
+        flag = True
+        for n in listA:
+            if is_sub_list(m, n):
+                flag = False
+                break
+        if flag:
+            flag = True
+            for l in b:
+                if is_sub_list(m, l):
+                    flag = False
+            if flag:
+                b.append(m)
+    return b
