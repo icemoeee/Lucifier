@@ -10,6 +10,7 @@ import global_params
 
 log = logging.getLogger(__name__)
 
+
 # THIS IS TO DEFINE A SKELETON FOR ANALYSIS
 # FOR NEW TYPE OF ANALYSIS: add necessary details to the skeleton functions
 
@@ -17,12 +18,13 @@ def set_cur_file(c_file):
     global cur_file
     cur_file = c_file
 
+
 def init_analysis():
     analysis = {
         "gas": 0,
         "gas_mem": 0,
         # "money_flow": [("Is", "Ia", "Iv")],  # (source, destination, amount)
-        "reentrancy_bug":[]
+        "reentrancy_bug": []
         # "money_concurrency_bug": [],
         # "time_dependency_bug": {}
     }
@@ -81,13 +83,16 @@ def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
 def check_dw_reentry(storage_backup, final_storage):
     ret = False
     # solver = Solver()
+    # print("storage:", storage_backup)
+    # print("final:", final_storage)
     for key in final_storage.keys():
         if key in storage_backup.keys():
             # solver.add(storage_backup[key] == final_storage[key])
             # print("simplify(storage_backup[key]):",simplify(storage_backup[key]))
             # print("isallreal:",isAllReal(storage_backup[key],final_storage[key]),"TorF:",(storage_backup[key] != final_storage[key]))
             # print("typeA:",type(storage_backup[key]),"typeB:",type(final_storage[key]))
-            if isAllReal(storage_backup[key],final_storage[key]):
+            # print("storageback:",storage_backup[key],"final:",final_storage[key])
+            if isAllReal(storage_backup[key], final_storage[key]):
                 ret = ret or (storage_backup[key] != final_storage[key])
                 # print("YYY",ret)
             else:
@@ -100,11 +105,12 @@ def check_dw_reentry(storage_backup, final_storage):
                 else:
                     vb = final_storage[key]
                 ret = ret or (str(simplify(va)) != str(simplify(vb)))
-                # print("ZZZ:",str(simplify(va)) != str(simplify(vb)))
+                # print("ZZZ:",str(simplify(va)) != str(simplify(vb)),"ret:",ret)
         else:
             ret = True
     # print("ret:",ret)
     return ret
+
 
 def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, path_index):
     path_condition = path_conditions_and_vars["path_condition"]
@@ -123,18 +129,36 @@ def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, p
     storage_dict_kv.update({path_index: tmp_dict})
 
 
-def check_sr_reentry(address, call_result_list, current_flow, storage_dict_kv):
+def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, pc, key_pcs, result_list):
+    result = {}
     for item in call_result_list:
-        if list_to_str(item["current_flow"]) in list_to_str(current_flow):
+        # print("path:", item["path_index"])
+        # print("item_cr:", item["current_flow"])
+        # print("current_flow:", current_flow)
+        if list_to_str(out_call_flow) in list_to_str(item["in_call_flow"]):
             path = item["path_index"]
             storage_kv = storage_dict_kv[path]
             if isReal(address):
                 if address in storage_kv.keys():
                     # print("reentry")
                     # analysis["reentrancy_bug"].append(True)
+                    result["flag"] = True
+                    result["path"] = path
+                    result["in_call_flow"] = item["in_call_flow"]
+                    result["pc"] = pc
+                    key_pcs.append(pc)
+                    result["key_pcs"] = key_pcs
+                    result_list.append(result)
                     return True
             else:
                 if str(address) in storage_kv.keys():
+                    result["flag"] = True
+                    result["path"] = path
+                    result["in_call_flow"] = item["in_call_flow"]
+                    result["pc"] = pc
+                    key_pcs.append(pc)
+                    result["key_pcs"] = key_pcs
+                    result_list.append(result)
                     # print("reentry")
                     # analysis["reentrancy_bug"].append(True)
                     return True
@@ -142,8 +166,21 @@ def check_sr_reentry(address, call_result_list, current_flow, storage_dict_kv):
     return False
 
 
+def validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result):
+    if sr_result and out_call_flow:
+        # print("sr_result:", sr_result)
+        for item in sr_result:
+            if list_to_str(out_call_flow) in list_to_str(item["in_call_flow"]):
+                analysis["reentrancy_bug"].append(True)
+                global_problematic_pcs["reentrancy_bug"].append(item["key_pcs"])
+                sr_result.remove(item)
+            break
+        pass
+    pass
+
+
 def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
-    gas_increment = get_ins_cost(opcode) # base cost
+    gas_increment = get_ins_cost(opcode)  # base cost
     gas_memory = analysis["gas_mem"]
     # In some opcodes, gas cost is not only depend on opcode itself but also current state of evm
     # For symbolic variables, we only add base cost part for simplicity
@@ -171,7 +208,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
-            except: # when storage address at considered key is empty
+            except:  # when storage address at considered key is empty
                 if stack[1] != 0:
                     gas_increment += GCOST["Gsset"]
                 elif stack[1] == 0:
@@ -183,7 +220,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 except:
                     storage_value = global_state["Ia"][str(stack[0])]
                 solver.push()
-                solver.add(Not( And(storage_value == 0, stack[1] != 0) ))
+                solver.add(Not(And(storage_value == 0, stack[1] != 0)))
                 if solver.check() == unsat:
                     gas_increment += GCOST["Gsset"]
                 else:
@@ -193,7 +230,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 if str(e) == "canceled":
                     solver.pop()
                 solver.push()
-                solver.add(Not( stack[1] != 0 ))
+                solver.add(Not(stack[1] != 0))
                 if solver.check() == unsat:
                     gas_increment += GCOST["Gsset"]
                 else:
@@ -201,7 +238,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 solver.pop()
     elif opcode == "SUICIDE" and len(stack) > 1:
         if isReal(stack[1]):
-            address = stack[1] % 2**160
+            address = stack[1] % 2 ** 160
             if address not in global_state:
                 gas_increment += GCOST["Gnewaccount"]
         else:
@@ -216,20 +253,20 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 gas_increment += GCOST["Gcallvalue"]
         else:
             solver.push()
-            solver.add(Not (stack[2] != 0))
+            solver.add(Not(stack[2] != 0))
             if check_sat(solver) == unsat:
                 gas_increment += GCOST["Gcallvalue"]
             solver.pop()
     elif opcode == "SHA3" and isReal(stack[1]):
-        pass # Not handle
+        pass  # Not handle
 
-
-    #Calculate gas memory, add it to total gas used
-    length = len(mem.keys()) # number of memory words
+    # Calculate gas memory, add it to total gas used
+    length = len(mem.keys())  # number of memory words
     new_gas_memory = GCOST["Gmemory"] * length + (length ** 2) // 512
     gas_increment += new_gas_memory - gas_memory
 
     return (gas_increment, new_gas_memory)
+
 
 def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver):
     gas_increment, gas_memory = calculate_gas(opcode, stack, mem, global_state, analysis, solver)
@@ -255,8 +292,9 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
     #     recipient = stack[0]
     #     if isSymbolic(recipient):
     #         recipient = simplify(recipient)
-        # analysis['money_concurrency_bug'].append(global_state['pc'])
-        # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
+    # analysis['money_concurrency_bug'].append(global_state['pc'])
+    # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
+
 
 def analysis_call(path_conditions_and_vars, outgas):
     solver = Solver()
@@ -268,6 +306,7 @@ def analysis_call(path_conditions_and_vars, outgas):
     path_conditions_and_vars["path_condition"].append(constraint)
     # if -1, it's unsafe call
     return ret == -1
+
 
 # Check if it is possible to execute a path after a previous path
 # Previous path has prev_pc (previous path condition) and set global state variables as in gstate (only storage values)
@@ -334,3 +373,11 @@ def is_diff(flow1, flow2):
         except Exception as e:
             return 1
     return 0
+
+
+def check_list_empty(list_var):
+    flag = True
+    for i in list_var:
+        if i:
+            flag = False
+    return flag
