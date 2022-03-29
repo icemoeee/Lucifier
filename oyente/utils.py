@@ -47,6 +47,17 @@ def to_signed(number):
     else:
         return number
 
+
+# 只要不是unsat，就认为有解，避免timeout
+def check_unsat(solver):
+    try:
+        ret = solver.check()
+        if ret != unsat:
+            return sat
+    except Exception as e:
+        return sat
+
+
 def check_sat(solver, pop_if_exception=True):
     try:
         ret = solver.check()
