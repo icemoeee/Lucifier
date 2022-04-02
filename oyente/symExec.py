@@ -108,34 +108,20 @@ def initGlobalVars():
         results = {
             'evm_code_coverage': '',
             'vulnerabilities': {
-                # 'integer_underflow': [],
-                # 'integer_overflow': [],
-                # 'callstack': [],
-                # 'money_concurrency': [],
-                # 'time_dependency': [],
                 'reentrancy': [],
                 'assertion_failure': [],
-                # 'parity_multisig_bug_2': [],
             }
         }
     else:# bytecode,hen duo False,not []
         results = {
             'evm_code_coverage': '',
             'vulnerabilities': {
-                # 'integer_underflow': [],
-                # 'integer_overflow': [],
-                # 'callstack': False,
-                # 'money_concurrency': False,
-                # 'time_dependency': False,
                 'reentrancy': False,
             }
         }
 
     global calls_affect_state
     calls_affect_state = {}
-
-    global call_pc_stack    # next call pc pushed in this stack
-    call_pc_stack = []
 
     global params_backup    #   backup params
     params_backup = {}
@@ -146,23 +132,11 @@ def initGlobalVars():
     global storage_dict_kv  # 在new_path中出现过的
     storage_dict_kv = {}
 
-    global path_con_dict    #存new_path_condition的路径和条件
-    path_con_dict = {}
-
-    global path_dict_to_list  # 路径和list序号的对应，key是list序号，value是路径
-    path_dict_to_list = {}
-
-    global storage_dict
-    storage_dict = {}
-
     global unsafecall_affect_list
     unsafecall_affect_list = []
 
     global call_result_list  # 记录当前路径call结果
     call_result_list = []
-
-    global current_flow_dict
-    current_flow_dict = {}
 
     global function_sig_list
     function_sig_list = []
@@ -172,9 +146,6 @@ def initGlobalVars():
 
     global function_sig_address
     function_sig_address = {}
-
-    # global sstore_flag
-    # sstore_flag = CONSTANT_UNLOCK
 
     # capturing the last statement of each basic block
     global end_ins_dict
@@ -197,9 +168,6 @@ def initGlobalVars():
     global visited_edges
     visited_edges = {}
 
-    # global money_flow_all_paths
-    # money_flow_all_paths = []
-
     global reentrancy_all_paths
     reentrancy_all_paths = []
 
@@ -209,7 +177,6 @@ def initGlobalVars():
 
     # store problem pc
     global global_problematic_pcs
-    # global_problematic_pcs = {"money_concurrency_bug": [], "reentrancy_bug": [], "time_dependency_bug": [], "assertion_failure": [], "integer_underflow": [], "integer_overflow": []}
     global_problematic_pcs = {"reentrancy_bug": []}
 
     # store global variables, e.g. storage, balance of all paths
@@ -253,7 +220,6 @@ def change_format():
             line = line.replace('SELFDESTRUCT', 'SUICIDE')
             line = line.replace('Missing opcode 0xfd', 'REVERT')
             line = line.replace('Missing opcode 0xfe', 'ASSERTFAIL')
-            # line = line.replace('Missing opcode', 'INVALID') #Missing opcode 0x?? -> invalid
             line = re.sub(r'Missing opcode .{3,4}', 'INVALID', line) #Missing opcode 0x?? -> invalid
             line = line.replace(':', '')
             lineParts = line.split(' ')
@@ -658,21 +624,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global g_src_map
     global function_sig_address
     global function_sig_list
-    global current_flow_dict
-    # global call_target
-    global call_pc_stack
-    # global callLock
-    # global sig_const
-    # global stack_back
-    # global call_status_stack
-    # global sstore_flag
-    global recall_flag
-    # global call_flag
     global storage_dict_kv
-    global path_con_dict
-    global path_dict_to_list
-    global storage_dict
-    # global path_index
     global call_result_list
     global params_backup
     global unsafecall_affect_list
@@ -933,25 +885,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     global data_source
     global function_sig_address
     global function_sig_list
-    global current_flow_dict
-    # global call_stack
-    # global function_stack
-    # global call_target
-    global call_pc_stack
-    # global sig_const
-    # global stack_back
-    # global call_status_stack
-    # global unGaslimitCall
-    # global sstore_flag
-    global recall_flag
-    # global call_flag
     global params_backup
     global storage_backup
     global storage_dict_kv
-    global path_con_dict
-    global path_dict_to_list
-    global storage_dict
-    # global path_index
     global call_result_list
     global unsafecall_affect_list
     global sr_result
@@ -968,7 +904,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     current_flow = params.current_flow
     reentry_key_pcs = params.reentry_key_pcs
     current_function = params.current_function
-    # overflow_pcs = params.overflow_pcs
     in_call_flow = params.in_call_flow
     out_call_flow = params.out_call_flow
     been_call = params.been_call
@@ -997,8 +932,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     # this should be done before symbolically executing the instruction,
     # since SE will modify the stack and mem
     # update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
-    # if opcode == "CALL" and analysis["reentrancy_bug"] and analysis["reentrancy_bug"][-1]:
-    #     global_problematic_pcs["reentrancy_bug"].append(global_state["pc"])  # if reentry, store pc
 
     log.debug("==============================")
     log.debug("EXECUTING: " + instr)
@@ -1009,7 +942,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     if opcode == "STOP":
         if isLockVar(Global_Flags.call_flag):  # 在call途中
             update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
-            # print("stop!after!storage_dict_kv:", storage_dict_kv)
             if Global_Flags.call_target not in current_function:
                 ret_v = check_dw_reentry(storage_backup, global_state['Ia'])
             else:
@@ -1031,7 +963,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             call_result_list.append(call_result)
             # update path
             Global_Flags.path_index += 1
-            # print("stop!call_result", call_result)
         else:
             validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result)
 
@@ -1054,23 +985,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # if both are symbolic z3 takes care of modulus automatically
                 computed = (first + second) % (2 ** 256)
             computed = simplify(computed) if is_expr(computed) else computed
-
-            check_revert = False
-            if jump_type[block] == 'conditional':
-                jump_target = vertices[block].get_jump_target()
-                falls_to = vertices[block].get_falls_to()
-                check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
-                if not check_revert:
-                    check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
-
-            # if jump_type[block] != 'conditional' or not check_revert:
-                # if not isAllReal(computed, first):
-                #     solver.push()
-                #     solver.add(UGT(first, computed))
-                    # if check_sat(solver) == sat:
-                        # global_problematic_pcs['integer_overflow'].append(Overflow(global_state['pc'] - 1, solver.model()))  # check interger overflow
-                        # overflow_pcs.append(global_state['pc'] - 1)
-                    # solver.pop()
 
             stack.insert(0, computed)
         else:
@@ -1103,22 +1017,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 computed = (first - second) % (2 ** 256)
             computed = simplify(computed) if is_expr(computed) else computed
-
-            check_revert = False
-            if jump_type[block] == 'conditional':
-                jump_target = vertices[block].get_jump_target()
-                falls_to = vertices[block].get_falls_to()
-                check_revert = any([True for instruction in vertices[jump_target].get_instructions() if instruction.startswith('REVERT')])
-                if not check_revert:
-                    check_revert = any([True for instruction in vertices[falls_to].get_instructions() if instruction.startswith('REVERT')])
-
-            # if jump_type[block] != 'conditional' or not check_revert:
-            #     if not isAllReal(first, second):
-            #         solver.push()
-            #         solver.add(UGT(second, first))
-            #         if check_sat(solver) == sat:
-            #             # global_problematic_pcs['integer_underflow'].append(Underflow(global_state['pc'] - 1, solver.model()))  # check interger overflow
-            #         solver.pop()
 
             stack.insert(0, computed)
         else:
@@ -1998,7 +1896,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         if len(stack) > 1:
             for call_pc in calls:
                 calls_affect_state[call_pc] = True
-            # global_state["pc"] = global_state["pc"] + 1
             stored_address = stack.pop(0)
             stored_value = stack.pop(0)
             if isReal(stored_address):
@@ -2007,24 +1904,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 # note that the stored_value could be unknown
                 global_state["Ia"][str(stored_address)] = stored_value
-            # print("sstore!")
             if isUnlockVar(Global_Flags.call_flag): # 不在call途中
-                # print("in")
-                # print("call_result_list:", call_result_list)
-                # print("storage_dict_kv", storage_dict_kv)
                 check_sr_reentry(stored_address, call_result_list, out_call_flow, storage_dict_kv, global_state["pc"], reentry_key_pcs, sr_result)
-                # print("ret", ret)
-                # if ret:
-                    # for callpc in unsafecall_affect_list:
-                    #     if callpc in current_flow:
-                    #         analysis["reentrancy_bug"].append(True)
-                    #         break
-                    # sr_result["pc"] = global_state["pc"]
-                    # sr_result["key_pcs"] = reentry_key_pcs
-                    # analysis["reentrancy_bug"].append(True)
-                    # reentry_key_pcs.append(global_state["pc"])
-                    # global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
-                    # print("globalpcs:", global_problematic_pcs["reentrancy_bug"])
             global_state["pc"] = global_state["pc"] + 1
         else:
             raise ValueError('STACK underflow')
@@ -2146,13 +2027,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             raise ValueError('STACK underflow')
     elif opcode == "CALL":
         # TODO: Need to handle miu_i
-        # global_state_back[global_state["pc"]] = custom_deepcopy(global_state)
-        # vertices[block].set_call_target(call_target)
-        # successor = vertices[block].get_falls_to()
-        # new_params = params.copy()
-        # new_params.global_state["pc"] = call_target
-        # new_params.current_flow.append(call_target)
-        # sym_exec_block(new_params, call_target, block, depth, func_call, current_func_name)
         global flag_judge
         flag_judge = True
         if len(stack) > 6:
@@ -2161,7 +2035,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             for call_pc in calls:
                 if call_pc not in calls_affect_state:
                     calls_affect_state[call_pc] = False
-            # global_state["pc"] = global_state["pc"] + 1
             outgas = stack.pop(0)
             recipient = stack.pop(0)
             transfer_amount = stack.pop(0)
@@ -2200,8 +2073,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
-                last_idx = len(path_conditions_and_vars["path_condition"]) - 1
-                # analysis["time_dependency_bug"][last_idx] = global_state["pc"] - 1
                 new_balance_ia = (balance_ia - transfer_amount)
                 global_state["balance"]["Ia"] = new_balance_ia
                 address_is = path_conditions_and_vars["Is"]
@@ -2306,8 +2177,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 solver.pop()
                 solver.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
-                last_idx = len(path_conditions_and_vars["path_condition"]) - 1
-                # analysis["time_dependency_bug"][last_idx] = global_state["pc"] - 1
         else:
             raise ValueError('STACK underflow')
     elif opcode in ("DELEGATECALL", "STATICCALL"):
@@ -2341,17 +2210,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             # TODO
             if isLockVar(Global_Flags.call_flag):  # 在call途中
                 update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
-                # print("return!after!storage_dict_kv:", storage_dict_kv)
                 # return忽略DW
-                # if Global_Flags.call_target not in current_function:
-                #     ret_v = check_dw_reentry(storage_backup, global_state['Ia'])
-                # else:
-                #     ret_v = False
-                # # print("retv:",ret_v)
-                # if ret_v:
-                #     analysis["reentrancy_bug"].append(True)
-                #     global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
-                    # print('analysis:',analysis["reentrancy_bug"])
                 # 记录当前路径结果call_result_list
                 # print("path:", Global_Flags.path_index)
                 call_result = {}
@@ -2364,7 +2223,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 call_result_list.append(call_result)
                 # update path
                 Global_Flags.path_index += 1
-                # print("stop!call_result", call_result)
             else:
                 validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result)
             pass
@@ -2408,161 +2266,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             exit(UNKNOWN_INSTRUCTION)
         raise Exception('UNKNOWN INSTRUCTION: ' + opcode)
 
-# Detect if a money flow depends on the timestamp
-# def detect_time_dependency():
-#     global results
-#     global g_src_map
-#     global time_dependency
-#
-#     TIMESTAMP_VAR = "IH_s"
-#     is_dependant = False
-#     pcs = []
-#     if global_params.PRINT_PATHS:
-#         log.info("ALL PATH CONDITIONS")
-#     for i, cond in enumerate(path_conditions):
-#         if global_params.PRINT_PATHS:
-#             log.info("PATH " + str(i + 1) + ": " + str(cond))
-#         for j, expr in enumerate(cond):
-#             if is_expr(expr):
-#                 if TIMESTAMP_VAR in str(expr) and j in global_problematic_pcs["time_dependency_bug"][i]:
-#                     pcs.append(global_problematic_pcs["time_dependency_bug"][i][j])
-#                     is_dependant = True
-#                     continue
-#
-#     time_dependency = TimeDependency(g_src_map, pcs)
-#
-#     if g_src_map:
-#         results['vulnerabilities']['time_dependency'] = time_dependency.get_warnings()
-#     else:
-#         results['vulnerabilities']['time_dependency'] = time_dependency.is_vulnerable()
-#     log.info('\t  Timestamp Dependency: \t\t %s', time_dependency.is_vulnerable())
-#
-#     if global_params.REPORT_MODE:
-#         file_name = g_disasm_file.split("/")[len(g_disasm_file.split("/"))-1].split(".")[0]
-#         report_file = file_name + '.report'
-#         with open(report_file, 'w') as rfile:
-#             if is_dependant:
-#                 rfile.write("yes\n")
-#             else:
-#                 rfile.write("no\n")
-
-
-# detect if two paths send money to different people
-# def detect_money_concurrency():
-#     global results
-#     global g_src_map
-#     global money_concurrency
-#
-#     log.debug("detect_money_concurrency")
-#     n = len(money_flow_all_paths)
-#     for i in range(n):
-#         log.debug("Path " + str(i) + ": " + str(money_flow_all_paths[i]))
-#         log.debug(all_gs[i])
-#     i = 0
-#     false_positive = []
-#     concurrency_paths = []
-#     flows = []
-#     for flow in money_flow_all_paths:
-#         i += 1
-#         if len(flow) == 1:
-#             continue  # pass all flows which do not do anything with money
-#         for j in range(i, n):
-#             jflow = money_flow_all_paths[j]
-#             if len(jflow) == 1:
-#                 continue
-#             if is_diff(flow, jflow):
-#                 flows.append(global_problematic_pcs["money_concurrency_bug"][i-1])
-#                 flows.append(global_problematic_pcs["money_concurrency_bug"][j])
-#                 concurrency_paths.append([i-1, j])
-#                 if global_params.CHECK_CONCURRENCY_FP and \
-#                         is_false_positive(i-1, j, all_gs, path_conditions) and \
-#                         is_false_positive(j, i-1, all_gs, path_conditions):
-#                     false_positive.append([i-1, j])
-#                 break
-#         if flows:
-#             break
-#
-#     money_concurrency = MoneyConcurrency(g_src_map, flows)
-#
-#     if g_src_map:
-#         results['vulnerabilities']['money_concurrency'] = money_concurrency.get_warnings_of_flows()
-#     else:
-#         results['vulnerabilities']['money_concurrency'] = money_concurrency.is_vulnerable()
-#     log.info('\t  Transaction-Ordering Dependence (TOD): %s', money_concurrency.is_vulnerable())
-#
-#     # if PRINT_MODE: print "All false positive cases: ", false_positive
-#     log.debug("Concurrency in paths: ")
-#     if global_params.REPORT_MODE:
-#         rfile.write("number of path: " + str(n) + "\n")
-#         # number of FP detected
-#         rfile.write(str(len(false_positive)) + "\n")
-#         rfile.write(str(false_positive) + "\n")
-#         # number of total races
-#         rfile.write(str(len(concurrency_paths)) + "\n")
-#         # all the races
-#         rfile.write(str(concurrency_paths) + "\n")
-
-# def detect_parity_multisig_bug_2():
-#     global g_src_map
-#     global results
-#     global parity_multisig_bug_2
-#
-#     parity_multisig_bug_2 = ParityMultisigBug2(g_src_map)
-#
-#     results['vulnerabilities']['parity_multisig_bug_2'] = parity_multisig_bug_2.get_warnings()
-#     s = "\t  Parity Multisig Bug 2: \t\t %s" % parity_multisig_bug_2.is_vulnerable()
-#     log.info(s)
-
-# def check_callstack_attack(disasm):
-#     problematic_instructions = ['CALL', 'CALLCODE']
-#     pcs = []
-#     for i in range(0, len(disasm)):
-#         instruction = disasm[i]
-#         if instruction[1] in problematic_instructions:
-#             try:
-#                 pc = int(instruction[0])
-#                 if not disasm[i+1][1] == 'SWAP':
-#                     continue
-#                 swap_num = int(disasm[i+1][2])
-#                 if not all(disasm[i+j+2][1] == 'POP' for j in range(swap_num)):
-#                     continue
-#             except IndexError:
-#                 continue
-#
-#             try:
-#                 opcode1 = disasm[i + swap_num + 2][1]
-#                 opcode2 = disasm[i + swap_num + 3][1]
-#                 opcode3 = disasm[i + swap_num + 4][1]
-#                 if opcode1 == "ISZERO" \
-#                     or opcode1 == "DUP" and opcode2 == "ISZERO" \
-#                     or opcode1 == "JUMPDEST" and opcode2 == "ISZERO" \
-#                     or opcode1 == "JUMPDEST" and opcode2 == "DUP" and opcode3 == "ISZERO":
-#                         pass
-#                 else:
-#                     pcs.append(pc)
-#             except IndexError:
-#                 pcs.append(pc)
-#     return pcs
-
-
-# def detect_callstack_attack():
-#     global results
-#     global g_src_map
-#     global calls_affect_state
-#     global callstack
-#
-#     disasm_data = open(g_disasm_file).read()
-#     instr_pattern = r"([\d]+) ([A-Z]+)([\d]+)?(?: => 0x)?(\S+)?"
-#     instr = re.findall(instr_pattern, disasm_data)
-#     pcs = check_callstack_attack(instr)
-#
-#     callstack = CallStack(g_src_map, pcs, calls_affect_state)
-#
-#     if g_src_map:
-#         results['vulnerabilities']['callstack'] = callstack.get_warnings()
-#     else:
-#         results['vulnerabilities']['callstack'] = callstack.is_vulnerable()
-#     log.info('\t  Callstack Depth Attack Vulnerability:  %s', callstack.is_vulnerable())
 
 def detect_reentrancy():
     global g_src_map
@@ -2582,35 +2285,6 @@ def detect_reentrancy():
             results['vulnerabilities']['reentrancy'] = reentrancy.is_vulnerable()
         log.info("\t  Re-Entrancy Vulnerability: \t\t %s", reentrancy.is_vulnerable())
 
-# def detect_integer_underflow():
-#     global integer_underflow
-#
-#
-#     #print("g_src_map:",g_src_map)
-#     #print("global_problematic_pcs",global_problematic_pcs)
-#
-#     integer_underflow = IntegerUnderflow(g_src_map, global_problematic_pcs['integer_underflow'])
-#
-#     if g_src_map:
-#         results['vulnerabilities']['integer_underflow'] = integer_underflow.get_warnings()
-#     else:
-#         results['vulnerabilities']['integer_underflow'] = integer_underflow.is_vulnerable()
-#     log.info('\t  Integer Underflow: \t\t\t %s', integer_underflow.is_vulnerable())
-#
-# def detect_integer_overflow():
-#     global integer_overflow
-#
-#     overflows = []
-#     for overflow in global_problematic_pcs['integer_overflow']:
-#         if overflow.pc not in revertible_overflow_pcs:
-#             overflows.append(overflow)
-#     integer_overflow = IntegerOverflow(g_src_map, overflows)
-#
-#     if g_src_map:
-#         results['vulnerabilities']['integer_overflow'] = integer_overflow.get_warnings()
-#     else:
-#         results['vulnerabilities']['integer_overflow'] = integer_overflow.is_vulnerable()
-#     log.info('\t  Integer Overflow: \t\t\t %s', integer_overflow.is_vulnerable())
 
 def detect_assertion_failure():
     global g_src_map
@@ -2638,19 +2312,12 @@ def detect_vulnerabilities():
         log.info("\t  EVM Code Coverage: \t\t\t %s%%", round(evm_code_coverage, 1))
         results["evm_code_coverage"] = str(round(evm_code_coverage, 1))
 
-        # if g_src_map:
-        #     detect_integer_underflow()
-        #     detect_integer_overflow()
-        #     detect_parity_multisig_bug_2()
 
         # log.debug("Checking for Callstack attack...")
         # detect_callstack_attack()
 
         if global_params.REPORT_MODE:
             rfile.write(str(total_no_of_paths) + "\n")
-
-        # detect_money_concurrency()
-        # detect_time_dependency()
 
         stop = time.time()
         if global_params.REPORT_MODE:
@@ -2677,9 +2344,6 @@ def detect_vulnerabilities():
 
     else:
         log.info("\t  EVM code coverage: \t 0/0")
-        # log.info("\t  Callstack bug: \t False")
-        # log.info("\t  Money concurrency bug: False")
-        # log.info("\t  Time dependency bug: \t False")
         log.info("\t  Reentrancy bug: \t False")
         if global_params.CHECK_ASSERTIONS:
             log.info("\t  Assertion failure: \t False")
@@ -2689,17 +2353,11 @@ def detect_vulnerabilities():
 
 def log_info():
     global g_src_map
-    # global time_dependency
-    # global callstack
-    # global money_concurrency
     global reentrancy
     global assertion_failure
-    # global parity_multisig_bug_2
 
-    # vulnerabilities = [integer_underflow, integer_overflow, callstack, money_concurrency, time_dependency, reentrancy]
     vulnerabilities = [reentrancy]
     if g_src_map:
-        # vulnerabilities.append(parity_multisig_bug_2)
         if global_params.CHECK_ASSERTIONS:
             vulnerabilities.append(assertion_failure)
 
@@ -2710,22 +2368,15 @@ def log_info():
 
 def vulnerability_found():
     global g_src_map
-    # global time_dependency
-    # global callstack
-    # global money_concurrency
     global reentrancy
     global assertion_failure
-    # global parity_multisig_bug_2
 
-    # vulnerabilities = [callstack, money_concurrency, time_dependency, reentrancy]
-    # print("reen:",reentrancy)
     if reentrancy is None:
         return 0
     vulnerabilities = [reentrancy]
 
     if g_src_map and global_params.CHECK_ASSERTIONS:
         vulnerabilities.append(assertion_failure)
-        # vulnerabilities.append(parity_multisig_bug_2)
 
     for vul in vulnerabilities:
         if vul.is_vulnerable():
@@ -2834,5 +2485,8 @@ def run(disasm_file=None, source_file=None, source_map=None):
         log.info("\t============ Results ===========")
         analyze()
         ret = detect_vulnerabilities()
+        end = time.time()
+        dtime = end - begin
+        log.info("\t  During time in Seconds: \t\t %f" % dtime)
         closing_message()  # store result file as json
         return ret

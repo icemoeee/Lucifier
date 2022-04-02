@@ -25,8 +25,6 @@ def init_analysis():
         "gas_mem": 0,
         # "money_flow": [("Is", "Ia", "Iv")],  # (source, destination, amount)
         "reentrancy_bug": []
-        # "money_concurrency_bug": [],
-        # "time_dependency_bug": {}
     }
     return analysis
 
@@ -36,65 +34,15 @@ def init_analysis():
 # def display_analysis(analysis):
 #     logging.debug("Money flow: " + str(analysis["money_flow"]))
 
-# Check if this call has the Reentrancy bug
-# Return true if it does, false otherwise
-def check_reentrancy_bug(path_conditions_and_vars, stack, global_state):
-    path_condition = path_conditions_and_vars["path_condition"]
-    new_path_condition = []
-    # print("path_condition", path_condition)
-    for expr in path_condition:
-        if not is_expr(expr):
-            continue
-        list_vars = get_vars(expr)
-        # print("list_vars", list_vars)
-        for var in list_vars:
-            # check if a var is global
-            # print("var.decl().name()", var.decl().name())
-            # print("isinstance(var, str)",isinstance(var, str))
-            if is_storage_var(var):
-                pos = get_storage_position(var)
-                if pos in global_state['Ia']:
-                    new_path_condition.append(var == global_state['Ia'][pos])
-    transfer_amount = stack[2]
-    if isSymbolic(transfer_amount) and is_storage_var(transfer_amount):
-        pos = get_storage_position(transfer_amount)
-        if pos in global_state['Ia']:
-            new_path_condition.append(global_state['Ia'][pos] != 0)
-    if global_params.DEBUG_MODE:
-        log.info("=>>>>>> New PC: " + str(new_path_condition))
-
-    # print("new_path_condition:",new_path_condition)
-    solver = Solver()
-    solver.set("timeout", global_params.TIMEOUT)
-    solver.add(path_condition)
-    solver.add(new_path_condition)
-    # 2300 is the outgas used by transfer and send.
-    # If outgas > 2300 when using call.gas.value then the contract will be considered to contain reentrancy bug
-    solver.add(stack[0] > 2300)
-    # transfer_amount > deposit_amount => reentrancy
-    solver.add(stack[2] > BitVec('Iv', 256))
-    # if it is not feasible to re-execute the call, its not a bug
-    ret_val = not (solver.check() == unsat)
-    if global_params.DEBUG_MODE:
-        log.info("Reentrancy_bug? " + str(ret_val))
-    return ret_val
-
 
 def check_dw_reentry(storage_backup, final_storage):
     ret = False
-    # solver = Solver()
     # print("storage:", storage_backup)
     # print("final:", final_storage)
     for key in final_storage.keys():
         if key in storage_backup.keys():
-            # solver.add(storage_backup[key] == final_storage[key])
-            # print("simplify(storage_backup[key]):",simplify(storage_backup[key]))
-            # print("isallreal:",isAllReal(storage_backup[key],final_storage[key]),"TorF:",(storage_backup[key] != final_storage[key]))
-            # print("typeA:",type(storage_backup[key]),"typeB:",type(final_storage[key]))
-            # print("storageback:",storage_backup[key],"final:",final_storage[key])
             if isAllReal(storage_backup[key], final_storage[key]):
                 ret = ret or (storage_backup[key] != final_storage[key])
-                # print("YYY",ret)
             else:
                 if isReal(storage_backup[key]):
                     va = to_symbolic(storage_backup[key])
@@ -105,10 +53,8 @@ def check_dw_reentry(storage_backup, final_storage):
                 else:
                     vb = final_storage[key]
                 ret = ret or (str(simplify(va)) != str(simplify(vb)))
-                # print("ZZZ:",str(simplify(va)) != str(simplify(vb)),"ret:",ret)
         else:
             ret = True
-    # print("ret:",ret)
     return ret
 
 
@@ -140,8 +86,6 @@ def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, 
             storage_kv = storage_dict_kv[path]
             if isReal(address):
                 if address in storage_kv.keys():
-                    # print("reentry")
-                    # analysis["reentrancy_bug"].append(True)
                     result["flag"] = True
                     result["path"] = path
                     result["in_call_flow"] = item["in_call_flow"]
@@ -159,8 +103,6 @@ def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, 
                     key_pcs.append(pc)
                     result["key_pcs"] = key_pcs
                     result_list.append(result)
-                    # print("reentry")
-                    # analysis["reentrancy_bug"].append(True)
                     return True
             # break
     return False
@@ -272,28 +214,6 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
     gas_increment, gas_memory = calculate_gas(opcode, stack, mem, global_state, analysis, solver)
     analysis["gas"] += gas_increment
     analysis["gas_mem"] = gas_memory
-
-    # if opcode == "CALL":
-    #     recipient = stack[1]
-    #     transfer_amount = stack[2]
-    #     # print("recipient:", recipient, "transfer_amount:", transfer_amount)
-    #     if isReal(transfer_amount) and transfer_amount == 0:
-    #         return
-    #     if isSymbolic(recipient):
-    #         recipient = simplify(recipient)
-    #     # print("simplyrecipient:", recipient)
-    #
-    #     # reentrancy_result = check_reentrancy_bug(path_conditions_and_vars, stack, global_state)
-    #     # analysis["reentrancy_bug"].append(reentrancy_result)
-    #
-    #     # analysis["money_concurrency_bug"].append(global_state["pc"])
-    #     # analysis["money_flow"].append( ("Ia", str(recipient), str(transfer_amount)))
-    # elif opcode == "SUICIDE":
-    #     recipient = stack[0]
-    #     if isSymbolic(recipient):
-    #         recipient = simplify(recipient)
-    # analysis['money_concurrency_bug'].append(global_state['pc'])
-    # analysis["money_flow"].append(("Ia", str(recipient), "all_remaining"))
 
 
 def analysis_call(path_conditions_and_vars, outgas):
