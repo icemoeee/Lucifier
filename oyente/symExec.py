@@ -2283,7 +2283,7 @@ def detect_reentrancy():
             results['vulnerabilities']['reentrancy'] = reentrancy.get_warnings()
         else:
             results['vulnerabilities']['reentrancy'] = reentrancy.is_vulnerable()
-        log.info("\t  Re-Entrancy Vulnerability: \t\t %s", reentrancy.is_vulnerable())
+        log.info("\t  Re-Entrancy Vulnerability: \t %s", reentrancy.is_vulnerable())
 
 
 def detect_assertion_failure():
@@ -2306,7 +2306,10 @@ def detect_vulnerabilities():
     global reentrancy
 
     reentrancy = None
+    stop = time.time()
+    dtime = stop - begin
     # print("ins:",instructions)
+    log.info("\t  During time in Seconds: \t\t %f" % dtime)
     if instructions:
         evm_code_coverage = float(len(visited_pcs)) / len(instructions.keys()) * 100
         log.info("\t  EVM Code Coverage: \t\t\t %s%%", round(evm_code_coverage, 1))
@@ -2316,18 +2319,25 @@ def detect_vulnerabilities():
         # log.debug("Checking for Callstack attack...")
         # detect_callstack_attack()
 
-        if global_params.REPORT_MODE:
-            rfile.write(str(total_no_of_paths) + "\n")
+        # if global_params.REPORT_MODE:
+        #     rfile.write(str(total_no_of_paths) + "\n")
 
-        stop = time.time()
+        # stop = time.time()
         if global_params.REPORT_MODE:
-            rfile.write(str(stop-begin))
-            rfile.close()
+            rfile.write(str(dtime) + "\n")
 
         log.debug("Results for Reentrancy Bug: " + str(reentrancy_all_paths))
         # print("Results for Reentrancy Bug: " + str(reentrancy_all_paths))
         problem_result = check_list_empty(reentrancy_all_paths)
         # print("problem_result:", problem_result)
+
+        if global_params.REPORT_MODE:
+            if not problem_result:
+                rfile.write("True" + "\n")
+            else:
+                rfile.write("False" + "\n")
+            rfile.close()
+
         if not problem_result:
             detect_reentrancy()
 
@@ -2473,6 +2483,7 @@ def run(disasm_file=None, source_file=None, source_map=None):
     global g_source_file
     global g_src_map
     global results
+    global begin
 
     g_disasm_file = disasm_file
     g_source_file = source_file  # source -> source_file
@@ -2485,8 +2496,5 @@ def run(disasm_file=None, source_file=None, source_map=None):
         log.info("\t============ Results ===========")
         analyze()
         ret = detect_vulnerabilities()
-        end = time.time()
-        dtime = end - begin
-        log.info("\t  During time in Seconds: \t\t %f" % dtime)
         closing_message()  # store result file as json
         return ret
