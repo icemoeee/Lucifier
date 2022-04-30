@@ -57,7 +57,7 @@ PARALLEL = 0
 
 FIND_SOLC_VERSION = 0
 
-CURRENT_SOLC_VERSION = "0.4.19"
+CURRENT_SOLC_VERSION = "0.4.25"
 
 SOLC_PATH = "/home/wcy/.solc-select/artifacts"
 
