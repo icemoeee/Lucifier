@@ -1,5 +1,6 @@
 from utils import run_command
 from ast_walker import AstWalker
+import global_params
 import json
 
 class AstHelper:
@@ -22,10 +23,11 @@ class AstHelper:
         return out["sources"]
 
     def get_source_list(self, filename):
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
         if self.allow_paths:
-            cmd = "solc --combined-json ast %s %s --allow-paths %s" % (self.remap, filename, self.allow_paths)
+            cmd = solc_path + " --combined-json ast %s %s --allow-paths %s" % (self.remap, filename, self.allow_paths)
         else:
-            cmd = "solc --combined-json ast %s %s" % (self.remap, filename)
+            cmd = solc_path + " --combined-json ast %s %s" % (self.remap, filename)
         out = run_command(cmd)
         out = json.loads(out)
         return out["sources"]

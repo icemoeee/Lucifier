@@ -157,10 +157,11 @@ class SourceMap:
 
     @classmethod
     def _get_sig_to_func_by_contract(cls):
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
         if cls.allow_paths:
-            cmd = 'solc --combined-json hashes %s %s --allow-paths %s' % (cls.remap, cls.parent_filename, cls.allow_paths)
+            cmd = solc_path + "solc --combined-json hashes %s %s --allow-paths %s" % (cls.remap, cls.parent_filename, cls.allow_paths)
         else:
-            cmd = 'solc --combined-json hashes %s %s' % (cls.remap, cls.parent_filename)
+            cmd = solc_path + " --combined-json hashes %s %s" % (cls.remap, cls.parent_filename)
         out = run_command(cmd)
         out = json.loads(out)
         return out['contracts']
@@ -174,10 +175,11 @@ class SourceMap:
 
     @classmethod
     def _load_position_groups(cls):
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
         if cls.allow_paths:
-            cmd = "solc --combined-json asm %s %s --allow-paths %s" % (cls.remap, cls.parent_filename, cls.allow_paths)
+            cmd = solc_path + " --combined-json asm %s %s --allow-paths %s" % (cls.remap, cls.parent_filename, cls.allow_paths)
         else:
-            cmd = "solc --combined-json asm %s %s" % (cls.remap, cls.parent_filename)
+            cmd = solc_path + " --combined-json asm %s %s" % (cls.remap, cls.parent_filename)
         out = run_command(cmd)
         out = json.loads(out)
         return out['contracts']

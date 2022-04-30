@@ -26,6 +26,9 @@ GLOBAL_TIMEOUT_TEST = 2
 # print path conditions
 PRINT_PATHS = 0
 
+# WEB = 1 means that we are using Oyente for web service
+WEB = 0
+
 # Redirect results to a json file.
 STORE_RESULT = 0
 
@@ -51,3 +54,11 @@ GENERATE_TEST_CASES = 0
 
 # Run Oyente in parallel
 PARALLEL = 0
+
+FIND_SOLC_VERSION = 0
+
+CURRENT_SOLC_VERSION = "0.4.19"
+
+SOLC_PATH = "/home/wcy/.solc-select/artifacts"
+
+SOLC_ERROR = 0

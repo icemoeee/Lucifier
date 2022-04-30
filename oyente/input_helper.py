@@ -4,6 +4,7 @@ import os
 import re
 import logging
 import json
+import traceback
 import global_params
 import six
 from source_map import SourceMap
@@ -62,30 +63,37 @@ class InputHelper:
             with open(self.source, 'r') as f:
                 bytecode = f.read()
             self._prepare_disasm_file(self.source, bytecode)
-            # you bytecode,chan sheng disasm tmp,then add it to inputs list
+
             disasm_file = self._get_temporary_files(self.source)['disasm']
             inputs.append({'disasm_file': disasm_file})
         else:
-            contracts = self._get_compiled_contracts() # duo contracts
-            self._prepare_disasm_files_for_analysis(contracts) # write tmp file(.evm .disasm)
+            contracts = self._get_compiled_contracts()
+            if global_params.FIND_SOLC_VERSION == 1:
+                return inputs
+            self._prepare_disasm_files_for_analysis(contracts)
             for contract, _ in contracts:
-                # print(contract)
-                c_source, cname = contract.split(':')
-                c_source = re.sub(self.root_path, "", c_source)
-                # print(c_source)
-                if self.input_type == InputHelper.SOLIDITY:
-                    source_map = SourceMap(contract, self.source, 'solidity', self.root_path, self.remap, self.allow_paths)
-                else:
-                    source_map = SourceMap(contract, self.source, 'standard json', self.root_path)
-                disasm_file = self._get_temporary_files(contract)['disasm'] # chan sheng disasm tmp
-                inputs.append({
-                    'contract': contract,
-                    'source_map': source_map,
-                    'source': self.source,
-                    'c_source': c_source,
-                    'c_name': cname,
-                    'disasm_file': disasm_file
-                })
+                try:
+                    c_source, cname = contract.split(':')
+                
+                    c_source = re.sub(self.root_path, "", c_source)
+                    if self.input_type == InputHelper.SOLIDITY:
+                        source_map = SourceMap(contract, self.source, 'solidity', self.root_path, self.remap, self.allow_paths)
+                    else:
+                        source_map = SourceMap(contract, self.source, 'standard json', self.root_path)
+                    disasm_file = self._get_temporary_files(contract)['disasm']
+                    inputs.append({
+                        'contract': contract,
+                        'source_map': source_map,
+                        'source': self.source,
+                        'c_source': c_source,
+                        'c_name': cname,
+                        'disasm_file': disasm_file
+                    })
+                except Exception as e:
+                    if global_params.SOLC_ERROR:
+                        traceback.print_exc()
+                    global_params.FIND_SOLC_VERSION = 1
+                    return inputs
         return inputs
 
     def rm_tmp_files(self):
@@ -106,10 +114,11 @@ class InputHelper:
         return self.compiled_contracts
 
     def _compile_solidity(self):
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
         if not self.allow_paths:
-            cmd = "solc --bin-runtime %s %s" % (self.remap, self.source)
+            cmd = solc_path + " --bin-runtime %s %s" % (self.remap, self.source)
         else:
-            cmd = "solc --bin-runtime %s %s --allow-paths %s" % (self.remap, self.source, self.allow_paths)
+            cmd = solc_path + " --bin-runtime %s %s --allow-paths %s" % (self.remap, self.source, self.allow_paths)
         err = ''
         if self.compilation_err:
             out, err = run_command_with_err(cmd)
@@ -160,11 +169,15 @@ class InputHelper:
         if not contracts:
             if not self.compilation_err:
                 logging.critical("Solidity compilation failed. Please use -ce flag to see the detail.")
+                if global_params.WEB:
+                    six.print_({"error": "Solidity compilation failed."})
             else:
                 logging.critical(err)
                 logging.critical("Solidity compilation failed.")
-
-            exit(1)
+                if global_params.WEB:
+                    six.print_({"error": err})
+            global_params.FIND_SOLC_VERSION = 1
+            # exit(1)
         return contracts
 
     def _link_libraries(self, filename, libs):
