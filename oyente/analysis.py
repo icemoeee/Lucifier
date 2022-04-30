@@ -2,11 +2,10 @@ import logging
 import math
 import six
 from opcodes import *
-from z3 import *
-from z3.z3util import *
 from vargenerator import *
 from utils import *
 import global_params
+from pysmt.shortcuts import *
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ def check_dw_reentry(storage_backup, final_storage):
                     vb = to_symbolic(final_storage[key])
                 else:
                     vb = final_storage[key]
-                ret = ret or (str(simplify(va)) != str(simplify(vb)))
+                ret = ret or (str(va.simplify()) != str(vb.simplify()))
         else:
             ret = True
     return ret
@@ -62,9 +61,9 @@ def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, p
     path_condition = path_conditions_and_vars["path_condition"]
     tmp_dict = {}
     for expr in path_condition:
-        if not is_expr(expr):
+        if not is_expression(expr):
             continue
-        list_vars = get_vars(expr)
+        list_vars = expr.get_free_variables()
         # print("list_vars", list_vars)
         for var in list_vars:
             # check if a var is global
@@ -162,8 +161,10 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 except:
                     storage_value = global_state["Ia"][str(stack[0])]
                 solver.push()
-                solver.add(Not(And(storage_value == 0, stack[1] != 0)))
-                if solver.check() == unsat:
+                solver.add_assertion(Not(And(Equals(to_symbolic(storage_value), BVZero(256)),
+                                             NotEquals(to_symbolic(stack[1]), BVZero(256)))))
+                # solver.add_assertion(Not(And(storage_value == 0, stack[1] != 0)))
+                if not solver.solve():
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
@@ -172,8 +173,9 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 if str(e) == "canceled":
                     solver.pop()
                 solver.push()
-                solver.add(Not(stack[1] != 0))
-                if solver.check() == unsat:
+                # solver.add(Not(stack[1] != 0))
+                solver.add_assertion(Not(NotEquals(to_symbolic(stack[1]), BVZero(256))))
+                if not solver.solve():
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
@@ -195,8 +197,9 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 gas_increment += GCOST["Gcallvalue"]
         else:
             solver.push()
-            solver.add(Not(stack[2] != 0))
-            if check_sat(solver) == unsat:
+            # solver.add(Not(stack[2] != 0))
+            solver.add_assertion(Not(NotEquals(to_symbolic(stack[2]), BVZero(256))))
+            if not solver.solve():
                 gas_increment += GCOST["Gcallvalue"]
             solver.pop()
     elif opcode == "SHA3" and isReal(stack[1]):
@@ -217,12 +220,10 @@ def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_
 
 
 def analysis_call(path_conditions_and_vars, outgas):
-    solver = Solver()
-    solver.set("timeout", global_params.TIMEOUT)
     # 2300 is the outgas used by transfer and send.
     # If outgas > 2300 when using call.gas.value then the contract will be considered to contain reentrancy bug
     ret = str(outgas).find("2300")
-    constraint = (outgas > 2300)
+    constraint = BVSGT(to_symbolic(outgas), BV(2300, 256))
     path_conditions_and_vars["path_condition"].append(constraint)
     # if -1, it's unsafe call
     return ret == -1
@@ -238,13 +239,11 @@ def is_feasible(prev_pc, gstate, curr_pc):
         if is_storage_var(var):
             pos = get_storage_position(var)
             if pos in gstate:
-                new_pc.append(var == gstate[pos])
+                new_pc.append(Equals(var, to_symbolic(gstate[pos])))
     curr_pc += new_pc
     curr_pc += prev_pc
-    solver = Solver()
-    solver.set("timeout", global_params.TIMEOUT)
-    solver.add(curr_pc)
-    if solver.check() == unsat:
+    constraint = (curr_pc)
+    if not is_sat(constraint, "yices", "QF_BV"):
         return False
     else:
         return True
@@ -281,14 +280,13 @@ def is_diff(flow1, flow2):
         if flow1[i] == flow2[i]:
             continue
         try:
-            tx_cd = Or(Not(flow1[i][0] == flow2[i][0]),
-                       Not(flow1[i][1] == flow2[i][1]),
-                       Not(flow1[i][2] == flow2[i][2]))
-            solver = Solver()
-            solver.set("timeout", global_params.TIMEOUT)
-            solver.add(tx_cd)
-
-            if solver.check() == sat:
+            # tx_cd = Or(Not(flow1[i][0] == flow2[i][0]),
+            #            Not(flow1[i][1] == flow2[i][1]),
+            #            Not(flow1[i][2] == flow2[i][2]))
+            tx_cd = Or(Not(EqualsOrIff(to_symbolic(flow1[i][0]), to_symbolic(flow2[i][0]))),
+                       Not(EqualsOrIff(to_symbolic(flow1[i][1]), to_symbolic(flow2[i][1]))),
+                       Not(EqualsOrIff(to_symbolic(flow1[i][2]), to_symbolic(flow2[i][2]))))
+            if is_sat(tx_cd, "yices", "QF_BV"):
                 return 1
         except Exception as e:
             return 1

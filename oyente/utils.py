@@ -12,18 +12,29 @@ import csv
 import re
 import difflib
 import six
-from z3 import *
-from z3.z3util import get_vars
 from constant import *
+from pysmt.typing import BVType
+from pysmt.fnode import FNode
+from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, \
+    BVULE, BVUGE, BVAdd, BVSub, BVMul, BVUDiv, BVURem, BVLShl, BVLShr, BVNot, \
+    BVNeg, BVZExt, BVSExt, BVRor, BVRol, BV, BVExtract, BVSLT, BVSLE, BVComp, \
+    BVSDiv, BVSRem, BVAShr, EqualsOrIff, BVZero, BVOne, Symbol, Bool, Equals, NotEquals, \
+    is_sat, is_valid, get_model, is_unsat, Portfolio, Not, SBV
+from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
+                              NoLogicAvailableError, SolverReturnedUnknownResultError, SolverAPINotFound)
+
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
 
+
 def isSymbolic(value):
-    return not isinstance(value, six.integer_types)
+    return isinstance(value, FNode)
+
 
 def isReal(value):
-    return isinstance(value, six.integer_types)
+    return isinstance(value, six.integer_types)  # float is ignored????
+
 
 def isAllReal(*args):
     for element in args:
@@ -31,43 +42,78 @@ def isAllReal(*args):
             return False
     return True
 
+
+def is_symbol_not_expression(formula):
+    if isSymbolic(formula):
+        # return formula.simplify().is_symbol()
+        return formula.is_symbol()
+    return False
+
+
+def is_expression(expr):
+    if isSymbolic(expr):
+        if not expr.is_symbol():
+            return True
+    return False
+
+
+def BV_abs(number):
+    f = BVSLE(BVZero(256), number.simplify())  # 0 <= number
+    if is_sat(f, "yices", "QF_BV"):
+        return number
+    else:
+        return BVSub(BVZero(256), number).simplify()
+
+
+def BV_to_int(number):
+    number = number.simplify()
+    if number.get_type().is_bv_type():
+        return int(str(number).split("_")[0])
+
+
 def to_symbolic(number):
     if isReal(number):
-        return BitVecVal(number, 256)
+        if number >= 0:
+            return BV(number, 256)
+        else:
+            return BVNeg(BV(abs(number), 256)).simplify()  # 真的有负数吗？超过最低下限后要报错吗？先记着，有问题再说
     return number
+
 
 def to_unsigned(number):
     if number < 0:
-        return number + 2**256
+        return number + 2 ** 256
     return number
 
+
 def to_signed(number):
-    if number > 2**(256 - 1):
-        return (2**(256) - number) * (-1)
+    if number > 2 ** (256 - 1):
+        return (2 ** (256) - number) * (-1)
     else:
         return number
 
 
-# 只要不是unsat，就认为有解，避免timeout
-def check_unsat(solver):
-    try:
-        ret = solver.check()
-        if ret != unsat:
-            return sat
-    except Exception as e:
-        return sat
+# # 只要不是unsat，就认为有解，避免timeout
+# def check_unsat(solver):
+#     try:
+#         ret = solver.check()
+#         if ret != unsat:
+#             return sat
+#     except Exception as e:
+#         return sat
 
 
 def check_sat(solver, pop_if_exception=True):
     try:
-        ret = solver.check()
-        if ret == unknown:
-            raise Z3Exception(solver.reason_unknown())
+        ret = solver.solve()
+        if ret not in (True, False):
+            raise SolverReturnedUnknownResultError()
     except Exception as e:
         if pop_if_exception:
             solver.pop()
         raise e
     return ret
+
 
 def custom_deepcopy(input):
     output = {}
@@ -82,7 +128,8 @@ def custom_deepcopy(input):
 
 
 def is_storage_var(var):
-    if not isinstance(var, str): var = var.decl().name()
+    if not isinstance(var, str):
+        var = var.symbol_name()
     return var.startswith('Ia_store')
 
 
@@ -91,16 +138,17 @@ def is_storage_var(var):
 def copy_global_values(global_state):
     return global_state['Ia']
 
+
 # check if a variable is in an expression
 def is_in_expr(var, expr):
-    list_vars = get_vars(expr)
-    set_vars = set(i.decl().name() for i in list_vars)
-    return var in set_vars
+    list_vars = expr.get_free_variables()
+    set_vars = set(i.symbol_name() for i in list_vars)
+    return var.symbol_name() in set_vars
 
 
 # check if an expression has any storage variables
 def has_storage_vars(expr, storage_vars):
-    list_vars = get_vars(expr)
+    list_vars = expr.get_free_variables()
     for var in list_vars:
         if var in storage_vars:
             return True
@@ -110,16 +158,20 @@ def has_storage_vars(expr, storage_vars):
 def get_all_vars(exprs):
     ret_vars = []
     for expr in exprs:
-        if is_expr(expr):
-            ret_vars += get_vars(expr)
+        if is_expression(expr):
+            ret_vars += expr.get_free_variables()
     return ret_vars
 
 
 def get_storage_position(var):
-    if not isinstance(var, str): var = var.decl().name()
+    if not isinstance(var, str):
+        var = var.symbol_name()
     pos = var.split('-')[1]
-    try: return int(pos)
-    except: return pos
+    try:
+        return int(pos)
+    except:
+        return pos
+
 
 # Rename variables to distinguish variables in two different paths.
 # e.g. Ia_store_0 in path i becomes Ia_store_0_old if Ia_store_0 is modified
@@ -129,13 +181,13 @@ def rename_vars(pcs, global_states):
     vars_mapping = {}
 
     for expr in pcs:
-        if is_expr(expr):
-            list_vars = get_vars(expr)
+        if is_expression(expr):
+            list_vars = expr.get_free_variables()
             for var in list_vars:
                 if var in vars_mapping:
-                    expr = substitute(expr, (var, vars_mapping[var]))
+                    expr = expr.substitute({var: vars_mapping[var]})
                     continue
-                var_name = var.decl().name()
+                var_name = var.symbol_name()
                 # check if a var is global
                 if is_storage_var(var):
                     pos = get_storage_position(var)
@@ -144,9 +196,9 @@ def rename_vars(pcs, global_states):
                         continue
                 # otherwise, change the name of the variable
                 new_var_name = var_name + '_old'
-                new_var = BitVec(new_var_name, 256)
+                new_var = Symbol(new_var_name, BVType(256))
                 vars_mapping[var] = new_var
-                expr = substitute(expr, (var, vars_mapping[var]))
+                expr = expr.substitute({var: vars_mapping[var]})
         ret_pcs.append(expr)
 
     ret_gs = {}
@@ -154,31 +206,31 @@ def rename_vars(pcs, global_states):
     for storage_addr in global_states:
         expr = global_states[storage_addr]
         # z3 4.1 makes me add this line
-        if is_expr(expr):
-            list_vars = get_vars(expr)
+        if is_expression(expr):
+            list_vars = expr.get_free_variables()
             for var in list_vars:
                 if var in vars_mapping:
-                    expr = substitute(expr, (var, vars_mapping[var]))
+                    expr = expr.substitute({var: vars_mapping[var]})
                     continue
-                var_name = var.decl().name()
+                var_name = var.symbol_name()
                 # check if a var is global
                 if var_name.startswith("Ia_store_"):
-                    position = int(var_name.split('_')[len(var_name.split('_'))-1])
+                    position = int(var_name.split('_')[len(var_name.split('_')) - 1])
                     # if it is not modified
                     if position not in global_states:
                         continue
                 # otherwise, change the name of the variable
                 new_var_name = var_name + '_old'
-                new_var = BitVec(new_var_name, 256)
+                new_var = Symbol(new_var_name, BVType(256))
                 vars_mapping[var] = new_var
-                expr = substitute(expr, (var, vars_mapping[var]))
+                expr = expr.substitute({var: vars_mapping[var]})
         ret_gs[storage_addr] = expr
 
     return ret_pcs, ret_gs
 
 
 # split a file into smaller files
-def split_dicts(filename, nsub = 500):
+def split_dicts(filename, nsub=500):
     with open(filename) as json_file:
         c = json.load(json_file)
         current_file = {}
@@ -261,13 +313,13 @@ def get_time_dependant_contracts(list_of_contracts):
                 fp.writerow([contract_addr, value, txs])
 
 
-def get_distinct_contracts(list_of_contracts = "concurr.csv"):
+def get_distinct_contracts(list_of_contracts="concurr.csv"):
     flag = []
     with open(list_of_contracts, "rb") as csvfile:
         contracts = csvfile.readlines()[1:]
         n = len(contracts)
         for i in range(n):
-            flag.append(i) # mark which contract is similar to contract_i
+            flag.append(i)  # mark which contract is similar to contract_i
         for i in range(n):
             if flag[i] != i:
                 continue
@@ -276,7 +328,7 @@ def get_distinct_contracts(list_of_contracts = "concurr.csv"):
             npair_i = int(contracts[i].split(",")[2])
             file_i = "stats/tmp_" + contract_i + ".evm"
             six.print_(" reading file " + file_i)
-            for j in range(i+1, n):
+            for j in range(i + 1, n):
                 if flag[j] != j:
                     continue
                 contract_j = contracts[j].split(",")[0]
@@ -299,10 +351,12 @@ def get_distinct_contracts(list_of_contracts = "concurr.csv"):
                             flag[j] = i
     six.print_(flag)
 
+
 def run_command(cmd):
     FNULL = open(os.devnull, 'w')
     solc_p = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=FNULL)
     return solc_p.communicate()[0].decode('utf-8', 'strict')
+
 
 def run_command_with_err(cmd):
     FNULL = open(os.devnull, 'w')

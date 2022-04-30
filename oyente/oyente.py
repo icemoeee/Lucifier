@@ -12,6 +12,7 @@ import subprocess
 import global_params
 from utils import run_command
 from input_helper import InputHelper
+from pysmt.exceptions import (NoSolverAvailableError, SolverAPINotFound)
 
 def cmd_exists(cmd):
     return subprocess.call("type " + cmd, shell=True,
@@ -29,14 +30,9 @@ def compare_versions(version1, version2):
 
 def has_dependencies_installed():
     try:
-        import z3
-        import z3.z3util
-        z3_version =  z3.get_version_string()
-        tested_z3_version = '4.5.1'
-        if compare_versions(z3_version, tested_z3_version) > 0:
-            logging.warning("You are using an untested version of z3. %s is the officially tested version" % tested_z3_version)
-    except:
-        logging.critical("Z3 is not available. Please install z3 from https://github.com/Z3Prover/z3.")
+        from pysmt.solvers.yices import YicesSolver
+    except SolverAPINotFound:
+        logging.critical("YicesSolver is not available. Please install YicesSolver.")
         return False
 
     if not cmd_exists("evm"):
@@ -46,7 +42,7 @@ def has_dependencies_installed():
         cmd = "evm --version"
         out = run_command(cmd).strip()
         evm_version = re.findall(r"evm version (\d*.\d*.\d*)", out)[0]
-        tested_evm_version = '1.7.3'
+        tested_evm_version = '1.8.2'
         if compare_versions(evm_version, tested_evm_version) > 0:
             logging.warning("You are using evm version %s. The supported version is %s" % (evm_version, tested_evm_version))
 
@@ -57,7 +53,7 @@ def has_dependencies_installed():
         cmd = "solc --version"
         out = run_command(cmd).strip()
         solc_version = re.findall(r"Version: (\d*.\d*.\d*)", out)[0]
-        tested_solc_version = '0.4.19'
+        tested_solc_version = '0.4.25'
         if compare_versions(solc_version, tested_solc_version) > 0:
             logging.warning("You are using solc version %s, The latest supported version is %s" % (solc_version, tested_solc_version))
 
@@ -82,7 +78,6 @@ def run_solidity_analysis(inputs):
         logging.info("contract %s:", inp['contract'])
         result, return_code = symExec.run(disasm_file=inp['disasm_file'], source_map=inp['source_map'], source_file=inp['source'])
 
-        # print(result)
         try:
             c_source = inp['c_source']
             c_name = inp['c_name']

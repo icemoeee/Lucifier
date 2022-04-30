@@ -1,3 +1,7 @@
+PySMT
+yicespy
+Pygments
+docutils
 certifi==2021.10.8
 chardet==4.0.0
 cytoolz==0.11.2
@@ -15,3 +19,6 @@ six==1.16.0
 toolz==0.11.2
 urllib3==1.26.8
 web3==3.16.5
+Cython==0.29.28
+gmpy2==2.1.2
+sphinx
