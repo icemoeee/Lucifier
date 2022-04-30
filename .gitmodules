@@ -1,0 +1,6 @@
+[submodule "pysmt"]
+	path = pysmt
+	url = https://github.com/pysmt/pysmt.git
+[submodule "cython"]
+	path = cython
+	url = https://github.com/cython/cython.git
