@@ -22,3 +22,4 @@ bytecode.1
 
 !oyente/tests/contracts/*/*
 /z3-z3-4.5.0/
+/oyente.egg-info/
