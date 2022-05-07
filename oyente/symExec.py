@@ -182,7 +182,7 @@ def initGlobalVars():
 
     # store problem pc
     global global_problematic_pcs
-    global_problematic_pcs = {"reentrancy_bug": []}
+    global_problematic_pcs = {"reentrancy_bug": [], "assertion_failure": []}
 
     global total_no_of_paths
     total_no_of_paths = 0
@@ -769,7 +769,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         solver.add_assertion(branch_expression)
 
         try:
-            if not solver.solve():  # unsat
+            with Timeout(sec=global_params.TIMEOUT):
+                ret = solver.solve()
+            if not ret:  # unsat
                 log.debug("INFEASIBLE PATH DETECTED")
             else:
                 left_branch = vertices[block].get_jump_target()
@@ -793,7 +795,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         except TimeoutError:
             raise
         except Exception as e:
-            # traceback.print_exc()
+            traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
 
@@ -806,7 +808,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("Negated branch expression: " + str(negated_branch_expression))
 
         try:
-            if not solver.solve():  # unsat
+            with Timeout(sec=global_params.TIMEOUT):
+                ret = solver.solve()
+            if not ret:  # unsat
                 # Note that this check can be optimized. I.e. if the previous check succeeds,
                 # no need to check for the negated condition, but we can immediately go into
                 # the else branch
@@ -833,7 +837,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         except TimeoutError:
             raise
         except Exception as e:
-            # traceback.print_exc()
+            traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
         solver.pop()  # POP SOLVER CONTEXT
