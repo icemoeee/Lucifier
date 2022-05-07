@@ -795,7 +795,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         except TimeoutError:
             raise
         except Exception as e:
-            traceback.print_exc()
+            # traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
 
@@ -837,7 +837,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         except TimeoutError:
             raise
         except Exception as e:
-            traceback.print_exc()
+            # traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
         solver.pop()  # POP SOLVER CONTEXT
