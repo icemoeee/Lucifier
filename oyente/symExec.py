@@ -761,7 +761,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         # A choice point, we proceed with depth first search
 
         branch_expression = vertices[block].get_branch_expression()
-
+        if branch_expression == None:
+            branch_expression = Bool(True)
         log.debug("Branch expression: " + str(branch_expression))
 
         solver.push()  # SET A BOUNDARY FOR SOLVER
@@ -982,6 +983,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 computed = (first + second) % (2 ** 256)
             else:
                 # if both are symbolic solver takes care of modulus automatically
+                first = to_symbolic(first)
+                second = to_symbolic(second)
                 computed = BVAdd(first, second).simplify()
 
             stack.insert(0, computed)
@@ -1001,6 +1004,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             elif isAllReal(first, second):
                 computed = first * second & UNSIGNED_BOUND_NUMBER
             else:
+                first = to_symbolic(first)
+                second = to_symbolic(second)
                 computed = BVMul(first, second).simplify()
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
@@ -1020,6 +1025,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             elif isAllReal(first, second):
                 computed = (first - second) % (2 ** 256)
             else:
+                first = to_symbolic(first)
+                second = to_symbolic(second)
                 computed = BVSub(first, second).simplify()
             # computed = simplify(computed) if is_expr(computed) else computed
 
@@ -1630,7 +1637,11 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     start = code_from * 2
                     end = start + no_bytes * 2
                     code = evm[start: end]
-                mem[mem_location] = int(code, 16)
+                try:
+                    mem[mem_location] = int(code, 16)
+                except Exception as e:
+                    raise
+                    # raise ValueError('STACK underflow')
             else:
                 new_var_name = gen.gen_code_var("Ia", code_from, no_bytes)
                 if new_var_name in path_conditions_and_vars:

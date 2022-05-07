@@ -1,6 +1,7 @@
 # return true if the two paths have different flows of money
 # later on we may want to return more meaningful output: e.g. if the concurrency changes
 # the amount of money or the recipient.
+import math
 import shlex
 import subprocess
 import json
@@ -33,7 +34,13 @@ def isSymbolic(value):
 
 
 def isReal(value):
-    return isinstance(value, six.integer_types)  # float is ignored????
+    ret = isinstance(value, six.integer_types)
+    if ret:
+        return ret
+    else:
+        ret = isinstance(value, float)
+        return ret
+    # return isinstance(value, six.integer_types)  # float is ignored????
 
 
 def isAllReal(*args):
@@ -72,6 +79,11 @@ def BV_to_int(number):
 
 
 def to_symbolic(number):
+    if isSymbolic(number):
+        return number
+    else:
+        if isinstance(number, float):
+            number = math.ceil(number)
     if isReal(number):
         if number >= 0:
             return BV(number, 256)
