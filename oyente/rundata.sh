@@ -11,6 +11,8 @@ for file in $base_dir
 do
     if test -d $file
     then
+    	cv_file=`ls $file/* | grep "CompilerVersion"`
+        cv=`head -n1 $cv_file`
         fn=`ls $file/* | grep ".sol$"`
         if [[ -z $fn ]]
         then	# 没有源文件则用字节码
@@ -18,7 +20,7 @@ do
 		fi
 		ad_file=`ls $file/* | grep ".address$"`
 		address=`head -n1 $ad_file`
-		python oyente.py -s $fn -r
+		python oyente.py -s $fn -sv $cv -se -r
 		re_file=`ls $file/* | grep ".report$"`
 		if [[ $re_file ]]	# 没有report文件则视为报错
         then
