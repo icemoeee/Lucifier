@@ -20,7 +20,7 @@ do
 		fi
 		ad_file=`ls $file/* | grep ".address$"`
 		address=`head -n1 $ad_file`
-		python oyente.py -s ${fn} -sv ${cv} -se -r
+		timeout 50 python oyente.py -s ${fn} -sv ${cv} -se -r
 		re_file=`ls $file/* | grep ".report$"`
 		if [[ $re_file ]]	# 没有report文件则视为报错
         then
