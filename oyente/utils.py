@@ -9,6 +9,7 @@ import mmap
 import os
 import errno
 import signal
+import global_params
 import csv
 import re
 import difflib
@@ -24,6 +25,28 @@ from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, 
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError, SolverReturnedUnknownResultError, SolverAPINotFound)
 
+class TimeoutError(Exception):
+    pass
+
+class Timeout:
+   """Timeout class using ALARM signal."""
+
+   def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
+       self.sec = sec
+       self.error_message = error_message
+
+   def __enter__(self):
+       signal.signal(signal.SIGALRM, self._handle_timeout)
+       signal.alarm(self.sec)
+
+   def __exit__(self, *args):
+       signal.alarm(0)    # disable alarm
+
+   def _handle_timeout(self, signum, frame):
+       raise TimeoutError(self.error_message)
+
+def do_nothing():
+    pass
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -117,7 +140,8 @@ def to_signed(number):
 
 def check_sat(solver, pop_if_exception=True):
     try:
-        ret = solver.solve()
+        with Timeout(sec=global_params.TIMEOUT):
+            ret = solver.solve()
         if ret not in (True, False):
             raise SolverReturnedUnknownResultError()
     except Exception as e:

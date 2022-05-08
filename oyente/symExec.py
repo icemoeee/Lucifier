@@ -2506,28 +2506,6 @@ def closing_message():
             of.write(json.dumps(results, indent=1))
         log.info("Wrote results to %s.", result_file)
 
-class TimeoutError(Exception):
-    pass
-
-class Timeout:
-   """Timeout class using ALARM signal."""
-
-   def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
-       self.sec = sec
-       self.error_message = error_message
-
-   def __enter__(self):
-       signal.signal(signal.SIGALRM, self._handle_timeout)
-       signal.alarm(self.sec)
-
-   def __exit__(self, *args):
-       signal.alarm(0)    # disable alarm
-
-   def _handle_timeout(self, signum, frame):
-       raise TimeoutError(self.error_message)
-
-def do_nothing():
-    pass
 
 def run_build_cfg_and_analyze(timeout_cb=do_nothing):
     initGlobalVars()
