@@ -24,20 +24,26 @@ do
 		re_file=`ls $file/* | grep ".report$"`
 		if [[ $re_file ]]	# 没有report文件则视为报错
         then
-        	reflag=false
-			for rfile in $re_file
-			do
-				result=`tail -n1 $rfile`
-			if [[ $result = True ]]; then
-				reflag=true	# 有True则为重入
-			fi
-			done
+        	fln=`wc -l $re_file | awk '{print $1}'`
+        	if [[ $fln = 0 ]]; then
+        		ErrorCounter=$(($ErrorCounter+1))
+				Address_map[$address]=error
+			else
+				reflag=false
+				for rfile in $re_file
+				do
+					result=`tail -n1 $rfile`
+				if [[ $result = True ]]; then
+					reflag=true	# 有True则为重入
+				fi
+				done
 
-			if [[ $reflag = true ]]; then
-				AddressCounter=$(($AddressCounter+1))
-			fi
-			Address_map[$address]=$reflag
-			unset reflag
+				if [[ $reflag = true ]]; then
+					AddressCounter=$(($AddressCounter+1))
+				fi
+				Address_map[$address]=$reflag
+				unset reflag
+        	fi
 		else
 			ErrorCounter=$(($ErrorCounter+1))
 			Address_map[$address]=error

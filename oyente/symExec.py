@@ -2140,12 +2140,12 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             # in the paper, it is shaky when the size of data output is
             # min of stack[6] and the | o |
 
-            if isReal(transfer_amount):
-                if transfer_amount == 0:
-                    stack.insert(0, 1)
-                    # add call judge here ----- means can not call
-                    flag_judge = False
-                    return
+            # if isReal(transfer_amount):
+            #     if transfer_amount == 0:
+            #         stack.insert(0, 1)
+            #         # add call judge here ----- means can not call
+            #         flag_judge = False
+            #         return
 
             # Let us ignore the call depth
             balance_ia = global_state["balance"]["Ia"]
