@@ -98,7 +98,10 @@ def BV_abs(number):
 def BV_to_int(number):
     number = number.simplify()
     if number.get_type().is_bv_type():
-        return int(str(number).split("_")[0])
+        strtmp = str(number)
+        strtmp = re.sub(r'_[0-9]{1,3}', '', strtmp)
+        return int(strtmp.strip())
+        # return int(str(number).split("_")[0])
 
 
 def to_symbolic(number):

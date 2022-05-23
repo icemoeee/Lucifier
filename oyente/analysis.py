@@ -34,14 +34,17 @@ def init_analysis():
 #     logging.debug("Money flow: " + str(analysis["money_flow"]))
 
 
-def check_dw_reentry(storage_backup, final_storage):
+def check_dw_reentry(storage_backup, final_storage, dw_keys):
     ret = False
     # print("storage:", storage_backup)
     # print("final:", final_storage)
     for key in final_storage.keys():
         if key in storage_backup.keys():
             if isAllReal(storage_backup[key], final_storage[key]):
-                ret = ret or (storage_backup[key] != final_storage[key])
+                if storage_backup[key] != final_storage[key]:
+                    dw_keys.append(key)
+                    ret = True
+                # ret = ret or (storage_backup[key] != final_storage[key])
             else:
                 if isReal(storage_backup[key]):
                     va = to_symbolic(storage_backup[key])
@@ -51,8 +54,12 @@ def check_dw_reentry(storage_backup, final_storage):
                     vb = to_symbolic(final_storage[key])
                 else:
                     vb = final_storage[key]
-                ret = ret or (str(va.simplify()) != str(vb.simplify()))
+                if str(va.simplify()) != str(vb.simplify()):
+                    dw_keys.append(key)
+                    ret = True
+                # ret = ret or (str(va.simplify()) != str(vb.simplify()))
         else:
+            dw_keys.append(key)
             ret = True
     return ret
 
