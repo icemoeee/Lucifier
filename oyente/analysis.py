@@ -34,14 +34,17 @@ def init_analysis():
 #     logging.debug("Money flow: " + str(analysis["money_flow"]))
 
 
-def check_dw_reentry(storage_backup, final_storage):
+def check_dw_reentry(storage_backup, final_storage, dw_keys):
     ret = False
     # print("storage:", storage_backup)
     # print("final:", final_storage)
     for key in final_storage.keys():
         if key in storage_backup.keys():
             if isAllReal(storage_backup[key], final_storage[key]):
-                ret = ret or (storage_backup[key] != final_storage[key])
+                if storage_backup[key] != final_storage[key]:
+                    dw_keys.append(key)
+                    ret = True
+                # ret = ret or (storage_backup[key] != final_storage[key])
             else:
                 if isReal(storage_backup[key]):
                     va = to_symbolic(storage_backup[key])
@@ -51,8 +54,12 @@ def check_dw_reentry(storage_backup, final_storage):
                     vb = to_symbolic(final_storage[key])
                 else:
                     vb = final_storage[key]
-                ret = ret or (str(va.simplify()) != str(vb.simplify()))
+                if str(va.simplify()) != str(vb.simplify()):
+                    dw_keys.append(key)
+                    ret = True
+                # ret = ret or (str(va.simplify()) != str(vb.simplify()))
         else:
+            dw_keys.append(key)
             ret = True
     return ret
 
@@ -164,7 +171,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 solver.add_assertion(Not(And(Equals(to_symbolic(storage_value), BVZero(256)),
                                              NotEquals(to_symbolic(stack[1]), BVZero(256)))))
                 # solver.add_assertion(Not(And(storage_value == 0, stack[1] != 0)))
-                if not solver.solve():
+                if not check_sat(solver):
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
@@ -175,7 +182,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
                 solver.push()
                 # solver.add(Not(stack[1] != 0))
                 solver.add_assertion(Not(NotEquals(to_symbolic(stack[1]), BVZero(256))))
-                if not solver.solve():
+                if not check_sat(solver):
                     gas_increment += GCOST["Gsset"]
                 else:
                     gas_increment += GCOST["Gsreset"]
@@ -199,7 +206,7 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
             solver.push()
             # solver.add(Not(stack[2] != 0))
             solver.add_assertion(Not(NotEquals(to_symbolic(stack[2]), BVZero(256))))
-            if not solver.solve():
+            if not check_sat(solver):
                 gas_increment += GCOST["Gcallvalue"]
             solver.pop()
     elif opcode == "SHA3" and isReal(stack[1]):

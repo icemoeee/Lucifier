@@ -10,8 +10,8 @@ DEBUG_MODE = 0
 # check false positive in concurrency
 CHECK_CONCURRENCY_FP = 0
 
-# Timeout for z3 in ms
-TIMEOUT = 100
+# Timeout for yices in seconds
+TIMEOUT = 1
 
 # Set this flag to 2 if we want to do evm real value unit test
 # Set this flag to 3 if we want to do evm symbolic unit test
@@ -57,9 +57,9 @@ PARALLEL = 0
 
 FIND_SOLC_VERSION = 0
 
-CURRENT_SOLC_VERSION = "0.4.19"
+CURRENT_SOLC_VERSION = "0.4.25"
 
-SOLC_PATH = "/home/wcy/.solc-select/artifacts"
+SOLC_PATH = "/home/doctordc/.solc-select/artifacts"
 
 SOLC_ERROR = 0
 

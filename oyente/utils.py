@@ -1,6 +1,7 @@
 # return true if the two paths have different flows of money
 # later on we may want to return more meaningful output: e.g. if the concurrency changes
 # the amount of money or the recipient.
+import math
 import shlex
 import subprocess
 import json
@@ -8,6 +9,7 @@ import mmap
 import os
 import errno
 import signal
+import global_params
 import csv
 import re
 import difflib
@@ -23,6 +25,28 @@ from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, 
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError, SolverReturnedUnknownResultError, SolverAPINotFound)
 
+class TimeoutError(Exception):
+    pass
+
+class Timeout:
+   """Timeout class using ALARM signal."""
+
+   def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
+       self.sec = sec
+       self.error_message = error_message
+
+   def __enter__(self):
+       signal.signal(signal.SIGALRM, self._handle_timeout)
+       signal.alarm(self.sec)
+
+   def __exit__(self, *args):
+       signal.alarm(0)    # disable alarm
+
+   def _handle_timeout(self, signum, frame):
+       raise TimeoutError(self.error_message)
+
+def do_nothing():
+    pass
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -33,7 +57,13 @@ def isSymbolic(value):
 
 
 def isReal(value):
-    return isinstance(value, six.integer_types)  # float is ignored????
+    ret = isinstance(value, six.integer_types)
+    if ret:
+        return ret
+    else:
+        ret = isinstance(value, float)
+        return ret
+    # return isinstance(value, six.integer_types)  # float is ignored????
 
 
 def isAllReal(*args):
@@ -68,10 +98,18 @@ def BV_abs(number):
 def BV_to_int(number):
     number = number.simplify()
     if number.get_type().is_bv_type():
-        return int(str(number).split("_")[0])
+        strtmp = str(number)
+        strtmp = re.sub(r'_[0-9]{1,3}', '', strtmp)
+        return int(strtmp.strip())
+        # return int(str(number).split("_")[0])
 
 
 def to_symbolic(number):
+    if isSymbolic(number):
+        return number
+    else:
+        if isinstance(number, float):
+            number = math.ceil(number)
     if isReal(number):
         if number >= 0:
             return BV(number, 256)
@@ -105,7 +143,8 @@ def to_signed(number):
 
 def check_sat(solver, pop_if_exception=True):
     try:
-        ret = solver.solve()
+        with Timeout(sec=global_params.TIMEOUT):
+            ret = solver.solve()
         if ret not in (True, False):
             raise SolverReturnedUnknownResultError()
     except Exception as e:
