@@ -73,9 +73,14 @@ class InputHelper:
             self._prepare_disasm_files_for_analysis(contracts)
             for contract, _ in contracts:
                 try:
-                    c_source, cname = contract.split(':')
+                    if contract.find(':') >= 0:
+                        c_source, cname = contract.split(':')
+                    else:
+                        cname = contract
+                        c_source = global_params.SOURCE
                 
                     c_source = re.sub(self.root_path, "", c_source)
+                    print(c_source)
                     if self.input_type == InputHelper.SOLIDITY:
                         source_map = SourceMap(contract, self.source, 'solidity', self.root_path, self.remap, self.allow_paths)
                     else:
@@ -137,7 +142,8 @@ class InputHelper:
         FNULL = open(os.devnull, 'w')
         cmd = "cat %s" % self.source
         p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=FNULL)
-        cmd = "solc --allow-paths %s --standard-json" % self.allow_paths
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
+        cmd = solc_path + " --allow-paths %s --standard-json" % self.allow_paths
         p2 = subprocess.Popen(shlex.split(cmd), stdin=p1.stdout, stdout=subprocess.PIPE, stderr=FNULL)
         p1.stdout.close()
         out = p2.communicate()[0]
@@ -186,9 +192,10 @@ class InputHelper:
             lib_address = "0x" + hex(idx+1)[2:].zfill(40)
             option += " --libraries %s:%s" % (lib, lib_address)
         FNULL = open(os.devnull, 'w')
-        cmd = "solc --bin-runtime %s %s" % (self.remap, self.source)
+        solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
+        cmd = solc_path + " --bin-runtime %s %s" % (self.remap, self.source)
         p1 = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=FNULL)
-        cmd = "solc --link%s" %option
+        cmd = solc_path + " --link%s" %option
         p2 = subprocess.Popen(shlex.split(cmd), stdin=p1.stdout, stdout=subprocess.PIPE, stderr=FNULL)
         p1.stdout.close()
         out = p2.communicate()[0].decode('utf-8', 'strict')

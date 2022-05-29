@@ -159,7 +159,7 @@ class SourceMap:
     def _get_sig_to_func_by_contract(cls):
         solc_path = global_params.SOLC_PATH + "/solc-" + global_params.CURRENT_SOLC_VERSION
         if cls.allow_paths:
-            cmd = solc_path + "solc --combined-json hashes %s %s --allow-paths %s" % (cls.remap, cls.parent_filename, cls.allow_paths)
+            cmd = solc_path + " --combined-json hashes %s %s --allow-paths %s" % (cls.remap, cls.parent_filename, cls.allow_paths)
         else:
             cmd = solc_path + " --combined-json hashes %s %s" % (cls.remap, cls.parent_filename)
         out = run_command(cmd)

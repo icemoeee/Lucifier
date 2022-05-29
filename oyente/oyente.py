@@ -246,6 +246,8 @@ def main():
         global_params.CURRENT_SOLC_VERSION = args.solc_version
     if args.solc_path:
         global_params.SOLC_PATH = args.solc_path
+    if args.source:
+        global_params.SOURCE = args.source
     if global_params.WEB:
         if args.global_timeout and args.global_timeout < global_params.GLOBAL_TIMEOUT:
             global_params.GLOBAL_TIMEOUT = args.global_timeout

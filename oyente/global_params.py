@@ -62,3 +62,5 @@ CURRENT_SOLC_VERSION = "0.4.19"
 SOLC_PATH = "/home/wcy/.solc-select/artifacts"
 
 SOLC_ERROR = 0
+
+SOURCE = ""
