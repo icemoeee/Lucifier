@@ -39,8 +39,8 @@ Overflow = namedtuple('Overflow', ['pc', 'model'])
 class Global_Flags:
     call_flag = CONSTANT_UNLOCK
     sstore_flag = CONSTANT_UNLOCK
-    path_index = 0
-    call_target = 0
+    path_index = CONSTANT_ZERO
+    call_target = CONSTANT_ZERO
 
 class Parameter:
     def __init__(self, **kwargs):
@@ -52,6 +52,8 @@ class Parameter:
             "current_flow": [],
             "in_call_flow": [],
             "out_call_flow": [],
+            "call_block": CONSTANT_ZERO,
+            "call_result_list": [],
             "been_call": CONSTANT_UNLOCK,
             "reentry_key_pcs": [],
             "mem": {},
@@ -145,8 +147,8 @@ def initGlobalVars():
     global unsafecall_affect_list
     unsafecall_affect_list = []
 
-    global call_result_list  # 记录当前路径call结果
-    call_result_list = []
+    # global call_result_list  # 记录当前路径call结果
+    # call_result_list = []
 
     global function_sig_list
     function_sig_list = []
@@ -422,11 +424,11 @@ def collect_vertices(tokens):
         if key not in jump_type:
             jump_type[key] = "falls_to"
 
-    # for k in instructions.keys():
-    #     print("k:", k, "v:", instructions[k])
-    # for key in end_ins_dict:
-    #     print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
-    #     print("jump_type:",jump_type[key])
+    for k in instructions.keys():
+        print("k:", k, "v:", instructions[k])
+    for key in end_ins_dict:
+        print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
+        print("jump_type:",jump_type[key])
 
 def construct_bb():
     global vertices # key:begin address, value: BasicBlock(begin,end)
@@ -613,7 +615,7 @@ def full_sym_exec():
     if function_sig_list:
         Global_Flags.call_target = function_sig_list[0]
     else:
-        Global_Flags.call_target = 0
+        Global_Flags.call_target = CONSTANT_ZERO
     params.current_flow.append(0)
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
@@ -630,7 +632,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global function_sig_address
     global function_sig_list
     global storage_dict_kv
-    global call_result_list
+    # global call_result_list
     global params_backup
     global unsafecall_affect_list
     global sr_result
@@ -654,6 +656,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     been_call = params.been_call
     dw_keys = params.dw_keys
     dw_changed = params.dw_changed
+    # call_result_list = params.call_result_list
+    call_block = params.call_block
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
     if block < 0:  # jump address, start address
@@ -699,6 +703,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     for instr in block_ins:
         sym_exec_ins(params, block, depth, instr, func_call, current_func_name)
 
+    # print("current_flow:", params.current_flow)
     # Mark that this basic block in the visited blocks
     visited.append(block)
     depth += 1
@@ -768,12 +773,13 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         # A choice point, we proceed with depth first search
 
         branch_expression = vertices[block].get_branch_expression()
-        if branch_expression == None:
-            branch_expression = Bool(True)
-        log.debug("Branch expression: " + str(branch_expression))
+        # if branch_expression == None:
+        #     branch_expression = Bool(True)
+        # log.debug("Branch expression: " + str(branch_expression))
 
-        solver.push()  # SET A BOUNDARY FOR SOLVER
-        solver.add_assertion(branch_expression)
+        if branch_expression is not None:
+            solver.push()  # SET A BOUNDARY FOR SOLVER
+            solver.add_assertion(branch_expression)
 
         try:
             with Timeout(sec=global_params.TIMEOUT):
@@ -784,9 +790,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 left_branch = vertices[block].get_jump_target()
                 new_params = params.copy()
                 new_params.global_state["pc"] = left_branch
-                new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
+                if branch_expression is not None:
+                    new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
                 if isLockVar(Global_Flags.call_flag): #in call
-                    new_params.new_path_conditions_and_vars["path_condition"].append(branch_expression)
+                    if branch_expression is not None:
+                        new_params.new_path_conditions_and_vars["path_condition"].append(branch_expression)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
                 new_params.current_flow.append(left_branch)
@@ -806,11 +814,14 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
 
-        solver.pop()  # POP SOLVER CONTEXT
+        if branch_expression is not None:
+            solver.pop()  # POP SOLVER CONTEXT
 
-        solver.push()  # SET A BOUNDARY FOR SOLVER
-        negated_branch_expression = Not(branch_expression)
-        solver.add_assertion(negated_branch_expression)
+            solver.push()  # SET A BOUNDARY FOR SOLVER
+            negated_branch_expression = Not(branch_expression)
+            solver.add_assertion(negated_branch_expression)
+        else:
+            negated_branch_expression = None
 
         log.debug("Negated branch expression: " + str(negated_branch_expression))
 
@@ -826,9 +837,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 right_branch = vertices[block].get_falls_to()
                 new_params = params.copy()
                 new_params.global_state["pc"] = right_branch
-                new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
+                if negated_branch_expression is not None:
+                    new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
                 if isLockVar(Global_Flags.call_flag): #in call
-                    new_params.new_path_conditions_and_vars["path_condition"].append(negated_branch_expression)
+                    if negated_branch_expression is not None:
+                        new_params.new_path_conditions_and_vars["path_condition"].append(negated_branch_expression)
                 last_idx = len(new_params.path_conditions_and_vars["path_condition"]) - 1
                 # new_params.analysis["time_dependency_bug"][last_idx] = global_state["pc"]
                 new_params.current_flow.append(right_branch)
@@ -847,7 +860,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
-        solver.pop()  # POP SOLVER CONTEXT
+        if branch_expression is not None:
+            solver.pop()  # POP SOLVER CONTEXT
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
     elif jump_type[block] == "call_type":
@@ -855,7 +869,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         if isUnlockVar(Global_Flags.call_flag):
             # 不在call途中
             if block not in safe_call_block:  # not safe call
-                for i in range(Global_Flags.path_index):  # 几个stop结果就几个顺序执行
+                call_result_list = params_backup[block].call_result_list
+                for i in range(len(call_result_list)):  # 几个stop结果就几个顺序执行
                     new_params = params_backup[block]
                     new_params.global_state["pc"] = successor
                     new_params.global_state["Ia"] = call_result_list[i]["storage"]
@@ -870,7 +885,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                         new_params.out_call_flow.append(successor)
                     sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
                 params.been_call = unlock_var(been_call)
-            else:
+                # call_result_list = []
+                # Global_Flags.path_index = 0
+            else:  # safe call
                 new_params = params.copy()
                 new_params.global_state["pc"] = successor
                 new_params.current_flow.append(successor)
@@ -905,7 +922,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     global params_backup
     global storage_backup
     global storage_dict_kv
-    global call_result_list
+    # global call_result_list
     global unsafecall_affect_list
     global sr_result
     global safe_call_block
@@ -927,6 +944,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     been_call = params.been_call
     dw_keys = params.dw_keys
     dw_changed = params.dw_changed
+    # call_result_list = params.call_result_list
+    # call_block = params.call_block
 
     visited_pcs.add(global_state["pc"])
 
@@ -961,6 +980,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     #  0s: Stop and Arithmetic Operations
     #
     if opcode == "STOP":
+        print("current_flow:", params.current_flow)
         if isLockVar(Global_Flags.call_flag):  # 在call途中
             update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
             if Global_Flags.call_target not in current_function:
@@ -983,6 +1003,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             call_result["sha3_list"] = sha3_list
             call_result["dw_keys"] = dw_keys
             call_result["dw_changed"] = ret_v
+
+            call_block = params.call_block
+            call_result_list = params_backup[call_block].call_result_list
             call_result_list.append(call_result)
             # update path
             Global_Flags.path_index += 1
@@ -2035,7 +2058,11 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # note that the stored_value could be unknown
                 global_state["Ia"][str(stored_address)] = stored_value
             if isUnlockVar(Global_Flags.call_flag): # 不在call途中
-                check_sr_reentry(stored_address, call_result_list, out_call_flow, storage_dict_kv, global_state["pc"], reentry_key_pcs, sr_result)
+                call_block = params.call_block
+                if call_block != CONSTANT_ZERO:
+                    back_call_result_list = params_backup[call_block].call_result_list
+                    if back_call_result_list:
+                        check_sr_reentry(stored_address, back_call_result_list, out_call_flow, storage_dict_kv, global_state["pc"], reentry_key_pcs, sr_result)
             global_state["pc"] = global_state["pc"] + 1
         else:
             raise ValueError('STACK underflow')
@@ -2045,7 +2072,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             target_address = stack.pop(0)
             if isSymbolic(target_address):
                 try:
-                    print("target_address:", target_address)
+                    # print("target_address:", target_address)
                     target_address = BV_to_int(target_address)
                 except:
                     raise TypeError("Target address must be an integer")
@@ -2246,6 +2273,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                         if global_state["pc"] not in unsafecall_affect_list:
                             unsafecall_affect_list.append(global_state["pc"])
                         params.been_call = lock_var(been_call)
+                        params.call_block = block
                         params_backup[block] = params.copy()  # global params backup
                         storage_backup = global_state["Ia"]  # storage backup
                         for func_addr in function_sig_list:
@@ -2346,6 +2374,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             raise ValueError('STACK underflow')
     elif opcode == "RETURN":
         # TODO: Need to handle miu_i
+        print("current_flow:", params.current_flow)
         if len(stack) > 1:
             stack.pop(0)
             stack.pop(0)
@@ -2368,6 +2397,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 call_result["sha3_list"] = sha3_list
                 call_result["dw_keys"] = dw_keys
                 call_result["dw_changed"] = ret_v
+
+                call_block = params.call_block
+                call_result_list = params_backup[call_block].call_result_list
                 call_result_list.append(call_result)
                 # update path
                 Global_Flags.path_index += 1
@@ -2474,6 +2506,9 @@ def detect_vulnerabilities():
         if global_params.REPORT_MODE:
             rfile.write(str(dtime) + "\n")
 
+        if global_params.REPORT_MODE:
+            rfile.write(results["evm_code_coverage"] + "\n")
+
         log.debug("Results for Reentrancy Bug: " + str(reentrancy_all_paths))
         # print("Results for Reentrancy Bug: " + str(reentrancy_all_paths))
         problem_result = check_list_empty(reentrancy_all_paths)
@@ -2546,6 +2581,8 @@ def closing_message():
     global results
 
     log.info("\t====== Analysis Completed ======")
+    # print(results)
+    # print(json.dumps(results, indent=1))
     if global_params.STORE_RESULT:
         result_file = g_disasm_file.split('.evm.disasm')[0] + '.json'
         with open(result_file, 'w') as of:
@@ -2558,8 +2595,9 @@ def run_build_cfg_and_analyze(timeout_cb=do_nothing):
     global g_timeout
 
     try:
-        with Timeout(sec=global_params.GLOBAL_TIMEOUT):
-            build_cfg_and_analyze()
+        build_cfg_and_analyze()
+        # with Timeout(sec=global_params.GLOBAL_TIMEOUT):
+        #     build_cfg_and_analyze()
         log.debug('Done Symbolic execution')
     except TimeoutError:
         g_timeout = True

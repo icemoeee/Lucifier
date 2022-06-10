@@ -66,6 +66,7 @@ def check_dw_reentry(storage_backup, final_storage, dw_keys):
 
 def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, path_index):
     path_condition = path_conditions_and_vars["path_condition"]
+    # print("path_condition:", path_condition)
     tmp_dict = {}
     for expr in path_condition:
         if not is_expression(expr):
@@ -115,8 +116,8 @@ def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, 
 
 
 def validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result):
+    # print("sr_result:", sr_result)
     if sr_result and out_call_flow:
-        # print("sr_result:", sr_result)
         for item in sr_result:
             if list_to_str(out_call_flow) in list_to_str(item["in_call_flow"]):
                 analysis["reentrancy_bug"].append(True)

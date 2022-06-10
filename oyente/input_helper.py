@@ -80,7 +80,7 @@ class InputHelper:
                         c_source = global_params.SOURCE
                 
                     c_source = re.sub(self.root_path, "", c_source)
-                    print(c_source)
+                    # print(c_source)
                     if self.input_type == InputHelper.SOLIDITY:
                         source_map = SourceMap(contract, self.source, 'solidity', self.root_path, self.remap, self.allow_paths)
                     else:
