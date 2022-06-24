@@ -338,6 +338,8 @@ def collect_vertices(tokens):
     current_line_content = ""
     wait_for_push = False
     is_new_block = False
+    dest_flag = False
+    dest_list = []
 
     for tok_type, tok_string, (srow, scol), _, line_number in tokens:
         if wait_for_push is True: # add value, to 16 jin zhi
@@ -382,25 +384,71 @@ def collect_vertices(tokens):
             continue
         elif tok_type == NAME: # just operator
             if tok_string == "JUMPDEST":
+                dest_flag = True
+                dest_list.append(current_block)
                 if last_ins_address not in end_ins_dict:
                     end_ins_dict[current_block] = last_ins_address # before?? JUMPDEST address
                 current_block = current_ins_address # JUMPDEST address
                 is_new_block = False
             elif tok_string == "STOP" or tok_string == "RETURN" or tok_string == "SUICIDE" or tok_string == "REVERT" or tok_string == "ASSERTFAIL":
+                if dest_flag:  # 连续两个jumpdest的处理（没处理3个以上，遇到再说）
+                    if dest_list:
+                        lth = len(dest_list)
+                        for dk in range(lth):
+                            second = dk + 1
+                            if second < lth:
+                                if dest_list[dk] == dest_list[second]:
+                                    dv = dest_list[dk]
+                                    end_ins_dict[dv] = dv
+                dest_list = []
                 jump_type[current_block] = "terminal"
                 end_ins_dict[current_block] = current_ins_address
+                dest_flag = False
             elif tok_string == "JUMP":
+                if dest_flag:
+                    if dest_list:
+                        lth = len(dest_list)
+                        for dk in range(lth):
+                            second = dk + 1
+                            if second < lth:
+                                if dest_list[dk] == dest_list[second]:
+                                    dv = dest_list[dk]
+                                    end_ins_dict[dv] = dv
+                dest_list = []
                 jump_type[current_block] = "unconditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
+                dest_flag = False
             elif tok_string == "JUMPI":
+                if dest_flag:
+                    if dest_list:
+                        lth = len(dest_list)
+                        for dk in range(lth):
+                            second = dk + 1
+                            if second < lth:
+                                if dest_list[dk] == dest_list[second]:
+                                    dv = dest_list[dk]
+                                    end_ins_dict[dv] = dv
+                dest_list = []
                 jump_type[current_block] = "conditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
+                dest_flag = False
             elif tok_string == "CALL":
+                if dest_flag:
+                    if dest_list:
+                        lth = len(dest_list)
+                        for dk in range(lth):
+                            second = dk + 1
+                            if second < lth:
+                                if dest_list[dk] == dest_list[second]:
+                                    dv = dest_list[dk]
+                                    end_ins_dict[dv] = dv
+                dest_list = []
                 jump_type[current_block] = "call_type"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
+                dest_flag = False
             elif tok_string.startswith('PUSH', 0):
                 wait_for_push = True
             is_new_line = False
@@ -427,8 +475,8 @@ def collect_vertices(tokens):
     for k in instructions.keys():
         print("k:", k, "v:", instructions[k])
     for key in end_ins_dict:
-        print("end_ins_k:", key,"end_ins_v:",end_ins_dict[key])
-        print("jump_type:",jump_type[key])
+        print("end_ins_k:", key, "end_ins_v:", end_ins_dict[key])
+        print("jump_type:", jump_type[key])
 
 def construct_bb():
     global vertices # key:begin address, value: BasicBlock(begin,end)
