@@ -37,7 +37,7 @@ DEPTH_LIMIT = 1000
 
 GAS_LIMIT = 4000000
 
-LOOP_LIMIT = 50
+LOOP_LIMIT = 10
 
 # Use a public blockchain to speed up the symbolic execution
 USE_GLOBAL_BLOCKCHAIN = 0

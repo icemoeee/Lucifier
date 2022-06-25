@@ -60,6 +60,7 @@ class Parameter:
             "analysis": {},
             "sha3_list": {},
             "global_state": {},
+            "visited_edges": {},
             "path_conditions_and_vars": {},
             "new_path_conditions_and_vars": {},
             "current_function": [],
@@ -177,8 +178,8 @@ def initGlobalVars():
     global edges
     edges = {}
 
-    global visited_edges
-    visited_edges = {}
+    # global visited_edges
+    # visited_edges = {}
 
     global reentrancy_all_paths
     reentrancy_all_paths = []
@@ -671,7 +672,7 @@ def full_sym_exec():
 # Symbolically executing a block from the start address
 def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name):
     global solver
-    global visited_edges
+    # global visited_edges
     # global money_flow_all_paths
     global path_conditions
     global global_problematic_pcs
@@ -706,10 +707,12 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     dw_changed = params.dw_changed
     # call_result_list = params.call_result_list
     call_block = params.call_block
+    visited_edges = params.visited_edges
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
     if block < 0:  # jump address, start address
         log.debug("UNKNOWN JUMP ADDRESS. TERMINATING THIS PATH")
+        print("UNKNOWN JUMP ADDRESS. TERMINATING THIS PATH")
         return ["ERROR"]
 
     log.debug("Reach block address %d \n", block)
@@ -734,11 +737,13 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
 
     if visited_edges[current_edge] > global_params.LOOP_LIMIT:
         log.debug("Overcome a number of loop limit. Terminating this path ...")
+        print("Overcome a number of loop limit. Terminating this path ...")
         return stack
 
     current_gas_used = analysis["gas"]
     if current_gas_used > global_params.GAS_LIMIT:
         log.debug("Run out of gas. Terminating this path ... ")
+        print("Run out of gas. Terminating this path ... ")
         return stack
 
     # Execute every instruction, one at a time
@@ -746,6 +751,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         block_ins = vertices[block].get_instructions()
     except KeyError:
         log.debug("This path results in an exception, possibly an invalid jump address")
+        print("This path results in an exception, possibly an invalid jump address")
         return ["ERROR"]
 
     for instr in block_ins:
@@ -823,15 +829,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         branch_expression = vertices[block].get_branch_expression()
         # if branch_expression == None:
         #     branch_expression = Bool(True)
-        # log.debug("Branch expression: " + str(branch_expression))
+        log.debug("Branch expression: " + str(branch_expression))
 
         if branch_expression is not None:
             solver.push()  # SET A BOUNDARY FOR SOLVER
             solver.add_assertion(branch_expression)
 
         try:
-            with Timeout(sec=global_params.TIMEOUT):
-                ret = solver.solve()
+            ret = solver.solve()
+            # with Timeout(sec=global_params.TIMEOUT):
+            #     ret = solver.solve()
             if not ret:  # unsat
                 log.debug("INFEASIBLE PATH DETECTED")
             else:
@@ -856,8 +863,10 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                     new_params.in_call_flow.append(left_branch)
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
         except TimeoutError:
+            log.debug("Timeout!")
             raise
         except Exception as e:
+            log.debug("ERROR!")
             traceback.print_exc()
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
@@ -874,8 +883,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("Negated branch expression: " + str(negated_branch_expression))
 
         try:
-            with Timeout(sec=global_params.TIMEOUT):
-                ret = solver.solve()
+            ret = solver.solve()
+            # with Timeout(sec=global_params.TIMEOUT):
+            #     ret = solver.solve()
             if not ret:  # unsat
                 # Note that this check can be optimized. I.e. if the previous check succeeds,
                 # no need to check for the negated condition, but we can immediately go into
@@ -952,6 +962,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     else:
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
+        log.debug("Unknown Jump-Type")
         raise Exception('Unknown Jump-Type')
 
 
