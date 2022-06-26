@@ -836,7 +836,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             solver.add_assertion(branch_expression)
 
         try:
-            ret = solver.solve()
+            ret = check_sat(solver)
             # with Timeout(sec=global_params.TIMEOUT):
             #     ret = solver.solve()
             if not ret:  # unsat
@@ -883,7 +883,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("Negated branch expression: " + str(negated_branch_expression))
 
         try:
-            ret = solver.solve()
+            ret = check_sat(solver)
             # with Timeout(sec=global_params.TIMEOUT):
             #     ret = solver.solve()
             if not ret:  # unsat

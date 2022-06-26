@@ -15,6 +15,8 @@ import re
 import difflib
 import six
 from constant import *
+from pebble import concurrent
+from concurrent.futures import TimeoutError
 from pysmt.typing import BVType
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, \
@@ -140,8 +142,8 @@ def to_signed(number):
 #     except Exception as e:
 #         return sat
 
-
-def check_sat(solver, pop_if_exception=True):
+@concurrent.process(timeout=1)
+def check_timeout(solver, pop_if_exception=True):
     try:
         with Timeout(sec=global_params.TIMEOUT):
             ret = solver.solve()
@@ -151,6 +153,14 @@ def check_sat(solver, pop_if_exception=True):
         if pop_if_exception:
             solver.pop()
         raise e
+    return ret
+
+def check_sat(solver, pop_if_exception=True):
+    ret = check_timeout(solver)
+    try:
+        print(ret.result())
+    except:
+        print("Timeout!")
     return ret
 
 
