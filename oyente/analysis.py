@@ -64,6 +64,23 @@ def check_dw_reentry(storage_backup, final_storage, dw_keys):
     return ret
 
 
+def check_sroc_reentry(params, analysis, global_problematic_pcs):
+    # print("check_sroc_reentry!")
+    sstore_flag = params.sstore_flag
+    # call_value_flag = params.call_value_flag
+    # print("sstore_flag:", sstore_flag)
+    # print("call_value_flag:", call_value_flag)
+    # if sstore_flag is CONSTANT_FALSE and call_value_flag is CONSTANT_TRUE:
+    if sstore_flag is CONSTANT_FALSE:
+        # print("reentry_key_pcs:", params.reentry_key_pcs)
+        if params.reentry_key_pcs not in global_problematic_pcs["reentrancy_bug"]:
+            analysis["reentrancy_bug"].append(True)
+            global_problematic_pcs["reentrancy_bug"].append(params.reentry_key_pcs)
+            # print(analysis)
+            # print(global_problematic_pcs)
+    pass
+
+
 def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, path_index):
     path_condition = path_conditions_and_vars["path_condition"]
     # print("path_condition:", path_condition)
@@ -120,8 +137,9 @@ def validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_resu
     if sr_result and out_call_flow:
         for item in sr_result:
             if list_to_str(out_call_flow) in list_to_str(item["in_call_flow"]):
-                analysis["reentrancy_bug"].append(True)
-                global_problematic_pcs["reentrancy_bug"].append(item["key_pcs"])
+                if item["key_pcs"] not in global_problematic_pcs["reentrancy_bug"]:
+                    analysis["reentrancy_bug"].append(True)
+                    global_problematic_pcs["reentrancy_bug"].append(item["key_pcs"])
                 sr_result.remove(item)
             break
         pass

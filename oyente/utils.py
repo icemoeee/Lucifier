@@ -16,7 +16,7 @@ import difflib
 import six
 from constant import *
 from pebble import concurrent
-from concurrent.futures import TimeoutError
+# from concurrent.futures import TimeoutError
 from pysmt.typing import BVType
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, \
@@ -142,8 +142,9 @@ def to_signed(number):
 #     except Exception as e:
 #         return sat
 
-@concurrent.process(timeout=1)
-def check_timeout(solver, pop_if_exception=True):
+# @concurrent.process(timeout=1000)
+# def check_timeout(solver, pop_if_exception=True):
+def check_sat(solver, pop_if_exception=True):
     try:
         with Timeout(sec=global_params.TIMEOUT):
             ret = solver.solve()
@@ -155,13 +156,13 @@ def check_timeout(solver, pop_if_exception=True):
         raise e
     return ret
 
-def check_sat(solver, pop_if_exception=True):
-    ret = check_timeout(solver)
-    try:
-        print(ret.result())
-    except:
-        print("Timeout!")
-    return ret
+# def check_sat(solver, pop_if_exception=True):
+#     ret = check_timeout(solver, pop_if_exception)
+#     try:
+#         print(ret.result())
+#     except TimeoutError:
+#         print("Timeout!")
+#     return ret
 
 
 def custom_deepcopy(input):
