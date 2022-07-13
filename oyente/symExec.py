@@ -1520,10 +1520,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         # when we have a symbolic expression, type error might occur
         # Currently handled by try and catch
         if len(stack) > 0:
-            print("pc:", global_state["pc"])
             global_state["pc"] = global_state["pc"] + 1
             first = stack.pop(0)
-            print("first: ", first)
             if isReal(first):
                 if first == 0:
                     computed = 1
