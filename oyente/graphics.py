@@ -1,0 +1,79 @@
+from collections import defaultdict
+
+
+class Graph:
+    def __init__(self):
+        self.edgeSet = set()
+        self.verticeSet = set()
+        self.graph = defaultdict(list)
+
+    def updateState(self):
+        self.verticeSet.clear()
+        self.graph.clear()
+        for e in self.edgeSet:
+            self.verticeSet.update(set(e))
+            # self.graph.update({e[0]: [e[1]]})
+            self.graph[e[0]].append(e[1])
+
+    def addEdge(self, edge):
+        if edge not in self.edgeSet:
+            self.edgeSet.add(edge)
+            self.updateState()
+            # self.graph[edge[0]].append(edge[1])
+
+    def removeEdge(self, edge):
+        if edge in self.edgeSet:
+            self.edgeSet.remove(edge)
+            self.updateState()
+            # self.graph[edge[0]].remove(edge[1])
+
+    def size(self):
+        return len(self.verticeSet)
+
+    def isCyclicUtil(self, v, visited, recStack):
+        visited.update({v: True})
+        recStack.update({v: True})
+
+        for neighbour in self.graph[v]:
+            if not visited[neighbour]:
+                if self.isCyclicUtil(neighbour, visited, recStack):
+                    return True
+            elif recStack[neighbour]:
+                return True
+
+        recStack[v] = False
+        return False
+
+    def isCyclic(self):
+        visited = defaultdict(bool)
+        recStack = defaultdict(bool)
+        for node in self.verticeSet:
+            if not visited[node]:
+                if self.isCyclicUtil(node, visited, recStack):
+                    return True
+        return False
+
+    def copy(self):
+        tmp = Graph()
+        tmp.graph = self.graph.copy()
+        tmp.edgeSet = self.edgeSet.copy()
+        tmp.verticeSet = self.verticeSet.copy()
+        return tmp
+
+if __name__ == '__main__':
+    a = Graph()
+    a.addEdge((5, 80))
+    a.addEdge((5, 81))
+    a.addEdge((6, 5))
+    a.addEdge((1306, 1315))
+    a.addEdge((1315, 1306))
+    print(a.isCyclic())
+    b = a.copy()
+    b.removeEdge((6, 5))
+    b.removeEdge((5, 80))
+    b.addEdge((7, 9))
+    b.isCyclic()
+    print("a:", a.edgeSet)
+    print("a:", a.graph)
+    print("b:", b.edgeSet)
+    print("b:", b.graph)

@@ -16,7 +16,11 @@ import difflib
 import six
 from constant import *
 from pebble import concurrent
-# from concurrent.futures import TimeoutError
+from concurrent.futures import TimeoutError
+import time
+from multiprocessing import Pool
+# import timeout_decorator
+# from func_timeout import func_set_timeout, FunctionTimedOut
 from pysmt.typing import BVType
 from pysmt.fnode import FNode
 from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, \
@@ -27,8 +31,8 @@ from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, 
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError, SolverReturnedUnknownResultError, SolverAPINotFound)
 
-class TimeoutError(Exception):
-    pass
+# class TimeoutError(Exception):
+#     pass
 
 class Timeout:
    """Timeout class using ALARM signal."""
@@ -142,27 +146,52 @@ def to_signed(number):
 #     except Exception as e:
 #         return sat
 
-# @concurrent.process(timeout=1000)
+# @concurrent.process(global_params.TIMEOUT)
 # def check_timeout(solver, pop_if_exception=True):
+# @func_set_timeout(global_params.TIMEOUT)
 def check_sat(solver, pop_if_exception=True):
+    with Pool(2) as p:
+        try:
+            print("before checksat:", time.time())
+            ret = p.map(check_timeout, (solver,))
+            print("after checksat:", time.time())
+            if ret not in (True, False):
+                print("result error!")
+                raise SolverReturnedUnknownResultError()
+        except TimeoutError as e:
+            print("other exception!", e)
+            if pop_if_exception:
+                solver.pop()
+            raise e
+        return ret
+
+    '''
     try:
-        with Timeout(sec=global_params.TIMEOUT):
-            ret = solver.solve()
+        print("before checksat:", time.time())
+        # with Timeout(sec=global_params.TIMEOUT):
+        #     ret = solver.solve()
+        ret = solver.solve()
+        print("after checksat:", time.time())
         if ret not in (True, False):
+            print("result error!")
             raise SolverReturnedUnknownResultError()
     except Exception as e:
+        print("other exception!", e)
         if pop_if_exception:
             solver.pop()
         raise e
     return ret
+    '''
 
-# def check_sat(solver, pop_if_exception=True):
-#     ret = check_timeout(solver, pop_if_exception)
-#     try:
-#         print(ret.result())
-#     except TimeoutError:
-#         print("Timeout!")
-#     return ret
+
+@concurrent.process(global_params.TIMEOUT)
+def check_timeout(solver):
+    ret = solver.solve()
+    # try:
+    #     print(ret.result())
+    # except TimeoutError:
+    #     print("Timeout!")
+    return ret
 
 
 def custom_deepcopy(input):

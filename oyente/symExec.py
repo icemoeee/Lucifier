@@ -22,6 +22,7 @@ from test_evm.global_test_params import (TIME_OUT, UNKNOWN_INSTRUCTION,
                                          EXCEPTION, PICKLE_PATH)
 from vulnerability import Reentrancy, AssertionFailure
 import global_params
+from graphics import Graph
 from pysmt.typing import BVType
 from pysmt.shortcuts import *
 from pysmt.environment import get_env
@@ -67,7 +68,9 @@ class Parameter:
             "dw_changed": False,
             # "call_value_flag": CONSTANT_FALSE,
             "sstore_flag": CONSTANT_FALSE,
-            "current_call_target": CONSTANT_ZERO
+            "current_call_target": CONSTANT_ZERO,
+            "graph": Graph(),
+            "loop_edge_dic": {}
         }
         for (attr, default) in six.iteritems(attr_defaults):
             setattr(self, attr, kwargs.get(attr, default))
@@ -713,6 +716,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     # call_value_flag = params.call_value_flag
     sstore_flag = params.sstore_flag
     current_call_target = params.current_call_target
+    graph = params.graph
+    loop_edge_dic = params.loop_edge_dic
+
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
     if block < 0:  # jump address, start address
@@ -734,6 +740,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 # print("current_func_name:",current_func_name)
 
     current_edge = Edge(pre_block, block)
+    # print("current_edge:", current_edge)
     if current_edge in visited_edges:
         updated_count_number = visited_edges[current_edge] + 1
         visited_edges.update({current_edge: updated_count_number})  # visited count number
@@ -744,6 +751,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("Overcome a number of loop limit. Terminating this path ...")
         print("Overcome a number of loop limit. Terminating this path ...")
         return stack
+
+    graph.addEdge(current_edge)
+    # print("graph:", graph.graph)
+    if graph.isCyclic():
+        # print("circle")
+        if current_edge in loop_edge_dic.keys():
+            print("There is a circle. Terminating this path ...")
+            return stack
+        graph.removeEdge(current_edge)
+        loop_edge_dic.update({current_edge: 1})
 
     current_gas_used = analysis["gas"]
     if current_gas_used > global_params.GAS_LIMIT:
@@ -758,6 +775,10 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("This path results in an exception, possibly an invalid jump address")
         print("This path results in an exception, possibly an invalid jump address")
         return ["ERROR"]
+    except Exception as e:
+        print("block_ins exception!", e)
+
+    # print("before ins current_flow:", params.current_flow)
 
     for instr in block_ins:
         sym_exec_ins(params, block, depth, instr, func_call, current_func_name)
@@ -798,6 +819,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     elif jump_type[block] == "unconditional":  # executing "JUMP"
         successor = vertices[block].get_jump_target()
         new_params = params.copy()
+        new_params.graph = graph.copy()
         new_params.global_state["pc"] = successor
         new_params.current_flow.append(successor)
         if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
@@ -816,6 +838,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     elif jump_type[block] == "falls_to":  # just follow to the next basic block
         successor = vertices[block].get_falls_to()
         new_params = params.copy()
+        new_params.graph = graph.copy()
         new_params.global_state["pc"] = successor
         new_params.current_flow.append(successor)
         if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
@@ -849,6 +872,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             else:
                 left_branch = vertices[block].get_jump_target()
                 new_params = params.copy()
+                new_params.graph = graph.copy()
                 new_params.global_state["pc"] = left_branch
                 if branch_expression is not None:
                     new_params.path_conditions_and_vars["path_condition"].append(branch_expression)
@@ -867,9 +891,10 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 else:
                     new_params.in_call_flow.append(left_branch)
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
-        except TimeoutError:
+        except TimeoutError as e:
             log.debug("Timeout!")
-            raise
+            print("Timeout!", e)
+            # raise
         except Exception as e:
             log.debug("ERROR!")
             traceback.print_exc()
@@ -899,6 +924,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             else:
                 right_branch = vertices[block].get_falls_to()
                 new_params = params.copy()
+                new_params.graph = graph.copy()
                 new_params.global_state["pc"] = right_branch
                 if negated_branch_expression is not None:
                     new_params.path_conditions_and_vars["path_condition"].append(negated_branch_expression)
@@ -917,8 +943,9 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 else:
                     new_params.in_call_flow.append(right_branch)
                 sym_exec_block(new_params, right_branch, block, depth, func_call, current_func_name)
-        except TimeoutError:
-            raise
+        except TimeoutError as e:
+            print("timeout error!", e)
+            # raise
         except Exception as e:
             traceback.print_exc()
             if global_params.DEBUG_MODE:
@@ -946,15 +973,19 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                     # print("afterkeys:", new_params.reentry_key_pcs)
                     new_params.dw_keys = call_result_list[i]["dw_keys"]
                     new_params.dw_changed = call_result_list[i]["dw_changed"]
+                    new_params.graph = call_result_list[i]["graph"]
+                    new_params.loop_edge_dic = call_result_list[i]["loop_edge_dic"]
                     new_params.current_flow.append(successor)
+                    current_block = new_params.in_call_flow[-1]
                     if isLockVar(new_params.been_call):
                         new_params.out_call_flow.append(successor)
-                    sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+                    sym_exec_block(new_params, successor, current_block, depth, func_call, current_func_name)  # go falls_to
                 params.been_call = unlock_var(been_call)
                 # call_result_list = []
                 # Global_Flags.path_index = 0
             else:  # safe call
                 new_params = params.copy()
+                new_params.graph = graph.copy()
                 new_params.global_state["pc"] = successor
                 new_params.current_flow.append(successor)
                 new_params.out_call_flow.append(successor)
@@ -962,6 +993,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         else:
             # 在call途中
             new_params = params.copy()
+            new_params.graph = graph.copy()
             new_params.global_state["pc"] = successor
             new_params.current_flow.append(successor)
             new_params.in_call_flow.append(successor)
@@ -1016,6 +1048,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     # call_result_list = params.call_result_list
     # call_block = params.call_block
     current_call_target = params.current_call_target
+    graph = params.graph
+    loop_edge_dic = params.loop_edge_dic
 
     visited_pcs.add(global_state["pc"])
 
@@ -1050,7 +1084,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     #  0s: Stop and Arithmetic Operations
     #
     if opcode == "STOP":
-        print("current_flow:", params.current_flow)
+        print("stopcurrent_flow:", params.current_flow)
+        # print("stopgraph:", graph.graph)
         if isLockVar(Global_Flags.call_flag):  # 在call途中
             update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
             if Global_Flags.call_target not in current_function:
@@ -1076,6 +1111,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             call_result["sstore_flag"] = sstore_flag
             # call_result["call_value_flag"] = call_value_flag
             call_result["current_call_target"] = params.current_call_target
+            call_result["graph"] = graph
+            call_result["loop_edge_dic"] = loop_edge_dic
 
             call_block = params.call_block
             call_result_list = params_backup[call_block].call_result_list
@@ -2367,12 +2404,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                         params.been_call = lock_var(been_call)
                         params.call_block = block
                         params_backup[block] = params.copy()  # global params backup
+                        params_backup[block].graph = graph.copy()
                         storage_backup = global_state["Ia"].copy()  # storage backup
                         for func_addr in function_sig_list:
                             Global_Flags.call_target = func_addr
                             vertices[block].set_call_target(Global_Flags.call_target)
                             # successor = vertices[block].get_falls_to()
                             new_params = params.copy()
+                            new_params.graph = graph.copy()
                             new_params.global_state["pc"] = Global_Flags.call_target
                             new_params.current_call_target = Global_Flags.call_target
                             new_params.current_flow.append(Global_Flags.call_target)
@@ -2469,7 +2508,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             raise ValueError('STACK underflow')
     elif opcode == "RETURN":
         # TODO: Need to handle miu_i
-        print("current_flow:", params.current_flow)
+        print("returncurrent_flow:", params.current_flow)
+        # print("returngraph:", graph.graph)
         if len(stack) > 1:
             stack.pop(0)
             stack.pop(0)
@@ -2495,6 +2535,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 call_result["sstore_flag"] = sstore_flag
                 # call_result["call_value_flag"] = call_value_flag
                 call_result["current_call_target"] = params.current_call_target
+                call_result["graph"] = graph
+                call_result["loop_edge_dic"] = loop_edge_dic
 
                 call_block = params.call_block
                 call_result_list = params_backup[call_block].call_result_list
@@ -2513,6 +2555,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         return
     elif opcode == "REVERT":
         # TODO: Need to handle miu_i
+        print("revert!")
         if len(stack) > 1:
             global_state["pc"] = global_state["pc"] + 1
             stack.pop(0)
@@ -2704,6 +2747,8 @@ def run_build_cfg_and_analyze(timeout_cb=do_nothing):
     except TimeoutError:
         g_timeout = True
         timeout_cb()
+    except Exception as e:
+        print("there is an ERROR!", e)
 
 def get_recipients(disasm_file, contract_address):
     global recipients
