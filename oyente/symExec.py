@@ -23,6 +23,9 @@ from test_evm.global_test_params import (TIME_OUT, UNKNOWN_INSTRUCTION,
 from vulnerability import Reentrancy, AssertionFailure
 import global_params
 from graphics import Graph
+import copy
+from multiprocessing import TimeoutError
+from solverstack import solverstack
 from pysmt.typing import BVType
 from pysmt.shortcuts import *
 from pysmt.environment import get_env
@@ -70,7 +73,8 @@ class Parameter:
             "sstore_flag": CONSTANT_FALSE,
             "current_call_target": CONSTANT_ZERO,
             "graph": Graph(),
-            "loop_edge_dic": {}
+            "loop_edge_dic": {},
+            "timer_flag": 0
         }
         for (attr, default) in six.iteritems(attr_defaults):
             setattr(self, attr, kwargs.get(attr, default))
@@ -81,7 +85,7 @@ class Parameter:
 
 def initGlobalVars():
     global g_src_map
-    global solver
+    # global solver
     # Z3 solver
 
     # '''PARALLEL'''
@@ -93,7 +97,7 @@ def initGlobalVars():
     # else:
     #     solver = Solver()
 
-    solver = Solver(name="yices", logic="QF_BV", incremental=True)
+    # solver = Solver(name="yices", logic="QF_BV", incremental=True)
     # solver.set("timeout", global_params.TIMEOUT)
 
     global MSIZE
@@ -185,6 +189,12 @@ def initGlobalVars():
 
     # global visited_edges
     # visited_edges = {}
+    
+    global solver_stack
+    solver_stack = solverstack()
+
+    global mtimer
+    mtimer = MTimer(global_params.GLOBAL_TIMEOUT)
 
     global reentrancy_all_paths
     reentrancy_all_paths = []
@@ -651,6 +661,7 @@ def get_start_block_to_func_sig():
 def full_sym_exec():
     global function_sig_address
     global function_sig_list
+    global mtimer
     # global call_target
 
     # executing, starting from beginning
@@ -671,12 +682,13 @@ def full_sym_exec():
     else:
         Global_Flags.call_target = CONSTANT_ZERO
     params.current_flow.append(0)
+    mtimer.start()
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
 
 # Symbolically executing a block from the start address
 def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name):
-    global solver
+    # global solver
     # global visited_edges
     # global money_flow_all_paths
     global path_conditions
@@ -691,6 +703,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global unsafecall_affect_list
     global sr_result
     global safe_call_block
+    global solverstack
+    global mtimer
 
     visited = params.visited
     stack = params.stack
@@ -718,6 +732,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     current_call_target = params.current_call_target
     graph = params.graph
     loop_edge_dic = params.loop_edge_dic
+    timer_flag = params.timer_flag
+    global restore_params
 
 
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
@@ -727,6 +743,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         return ["ERROR"]
 
     log.debug("Reach block address %d \n", block)
+    log.debug("reach now flow: "+str(current_flow)+"\n")
 
     if g_src_map:
         if block in function_sig_address:  # function address
@@ -762,6 +779,12 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         graph.removeEdge(current_edge)
         loop_edge_dic.update({current_edge: 1})
 
+    if block in function_sig_list:
+        mtimer.restart()
+        params.timer_flag = mtimer.getindex()
+        restore_params = params.copy()
+        print("excute function:", mtimer.getindex(), "current:", block)
+
     current_gas_used = analysis["gas"]
     if current_gas_used > global_params.GAS_LIMIT:
         log.debug("Run out of gas. Terminating this path ... ")
@@ -780,9 +803,17 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
 
     # print("before ins current_flow:", params.current_flow)
 
-    for instr in block_ins:
-        sym_exec_ins(params, block, depth, instr, func_call, current_func_name)
-
+    try:
+        for instr in block_ins:
+            sym_exec_ins(params, block, depth, instr, func_call, current_func_name)
+    except TimerFunctionError as e:
+        log.debug("TimerFunctionError:")
+        log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+        log.debug("cfl:" + str(params.current_flow))
+        log.debug("cb:" + str(block))
+        if params.timer_flag == mtimer.getindex():
+            raise e
+        print(e)
     # print("current_flow:", params.current_flow)
     # Mark that this basic block in the visited blocks
     visited.append(block)
@@ -799,7 +830,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
 
         if global_params.GENERATE_TEST_CASES:
             try:
-                model = solver.get_model()
+                model = check_sat_and_get_model(solverstack)[1]
+                # model = solver.get_model()
                 no_of_test_cases += 1
                 filename = "test%s.otest" % no_of_test_cases
                 with open(filename, 'w') as f:
@@ -834,7 +866,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             source_code = g_src_map.get_source_code(global_state['pc'])
             if source_code in g_src_map.func_call_names:
                 func_call = global_state['pc']
-        sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
+        try:
+            sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
+        except TimerFunctionError as e:
+            log.debug("TimerFunctionError:")
+            log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+            log.debug("cfl:" + str(params.current_flow))
+            log.debug("cb:" + str(block))
+            if params.timer_flag == mtimer.getindex():
+                raise e
+            # 
     elif jump_type[block] == "falls_to":  # just follow to the next basic block
         successor = vertices[block].get_falls_to()
         new_params = params.copy()
@@ -849,7 +890,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                     new_params.current_function.append(successor)
         else:
             new_params.in_call_flow.append(successor)
-        sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
+        try:
+            sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)
+        except TimerFunctionError as e:
+            log.debug("TimerFunctionError:")
+            log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+            log.debug("cfl:" + str(params.current_flow))
+            log.debug("cb:" + str(block))
+            if params.timer_flag == mtimer.getindex():
+                raise e
+            # params = restore_params.copy()
     elif jump_type[block] == "conditional":  # executing "JUMPI"
 
         # A choice point, we proceed with depth first search
@@ -860,11 +910,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         log.debug("Branch expression: " + str(branch_expression))
 
         if branch_expression is not None:
-            solver.push()  # SET A BOUNDARY FOR SOLVER
-            solver.add_assertion(branch_expression)
+            solver_stack.push()  # SET A BOUNDARY FOR SOLVER
+            solver_stack.add(branch_expression)
 
         try:
-            ret = check_sat(solver)
+            ret = check_sat(solver_stack, mtimer)
             # with Timeout(sec=global_params.TIMEOUT):
             #     ret = solver.solve()
             if not ret:  # unsat
@@ -890,7 +940,21 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                             new_params.current_function.append(left_branch)
                 else:
                     new_params.in_call_flow.append(left_branch)
+                # try:
                 sym_exec_block(new_params, left_branch, block, depth, func_call, current_func_name)
+                # except TimerFunctionError as e:
+                #     if params.timer_flag == mtimer.getindex():
+                #         raise e
+                #     params = restore_params.copy()
+        except TimerFunctionError as e:
+            log.debug("TimerFunctionError:")
+            log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+            log.debug("cfl:" + str(params.current_flow))
+            log.debug("cb:" + str(block))
+            if params.timer_flag == mtimer.getindex():
+                solver_stack.pop()
+                raise e
+            # params = restore_params.copy()
         except TimeoutError as e:
             log.debug("Timeout!")
             print("Timeout!", e)
@@ -902,18 +966,18 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 traceback.print_exc()
 
         if branch_expression is not None:
-            solver.pop()  # POP SOLVER CONTEXT
+            solver_stack.pop()  # POP SOLVER CONTEXT
 
-            solver.push()  # SET A BOUNDARY FOR SOLVER
+            solver_stack.push()  # SET A BOUNDARY FOR SOLVER
             negated_branch_expression = Not(branch_expression)
-            solver.add_assertion(negated_branch_expression)
+            solver_stack.add(negated_branch_expression)
         else:
             negated_branch_expression = None
 
         log.debug("Negated branch expression: " + str(negated_branch_expression))
 
         try:
-            ret = check_sat(solver)
+            ret = check_sat(solver_stack, mtimer)
             # with Timeout(sec=global_params.TIMEOUT):
             #     ret = solver.solve()
             if not ret:  # unsat
@@ -942,7 +1006,21 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                             new_params.current_function.append(right_branch)
                 else:
                     new_params.in_call_flow.append(right_branch)
+                # try:
                 sym_exec_block(new_params, right_branch, block, depth, func_call, current_func_name)
+                # except TimerFunctionError as e:
+                #     if params.timer_flag == mtimer.getindex():
+                #         raise e
+                #     params = restore_params.copy()
+        except TimerFunctionError as e:
+            log.debug("TimerFunctionError:")
+            log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+            log.debug("cfl:" + str(params.current_flow))
+            log.debug("cb:" + str(block))
+            if params.timer_flag == mtimer.getindex():
+                solver_stack.pop()
+                raise e
+
         except TimeoutError as e:
             print("timeout error!", e)
             # raise
@@ -951,7 +1029,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             if global_params.DEBUG_MODE:
                 traceback.print_exc()
         if branch_expression is not None:
-            solver.pop()  # POP SOLVER CONTEXT
+            solver_stack.pop()  # POP SOLVER CONTEXT
         updated_count_number = visited_edges[current_edge] - 1
         visited_edges.update({current_edge: updated_count_number})
     elif jump_type[block] == "call_type":
@@ -979,7 +1057,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                     current_block = new_params.in_call_flow[-1]
                     if isLockVar(new_params.been_call):
                         new_params.out_call_flow.append(successor)
-                    sym_exec_block(new_params, successor, current_block, depth, func_call, current_func_name)  # go falls_to
+                    try:
+                        sym_exec_block(new_params, successor, current_block, depth, func_call, current_func_name)  # go falls_to
+                    except TimerFunctionError as e:
+                        log.debug("TimerFunctionError:")
+                        log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+                        log.debug("cfl:" + str(params.current_flow))
+                        log.debug("cb:" + str(block))
+                        if params.timer_flag == mtimer.getindex():
+                            raise e
+                        # params = restore_params.copy()
                 params.been_call = unlock_var(been_call)
                 # call_result_list = []
                 # Global_Flags.path_index = 0
@@ -989,7 +1076,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 new_params.global_state["pc"] = successor
                 new_params.current_flow.append(successor)
                 new_params.out_call_flow.append(successor)
-                sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+                try:
+                    sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+                except TimerFunctionError as e:
+                    log.debug("TimerFunctionError:")
+                    log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+                    log.debug("cfl:" + str(params.current_flow))
+                    log.debug("cb:" + str(block))
+                    if params.timer_flag == mtimer.getindex():
+                        raise e
+
         else:
             # 在call途中
             new_params = params.copy()
@@ -997,7 +1093,16 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             new_params.global_state["pc"] = successor
             new_params.current_flow.append(successor)
             new_params.in_call_flow.append(successor)
-            sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+            try:
+                sym_exec_block(new_params, successor, block, depth, func_call, current_func_name)  # go falls_to
+            except TimerFunctionError as e:
+                log.debug("TimerFunctionError:")
+                log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(mtimer.getindex()))
+                log.debug("cfl:" + str(params.current_flow))
+                log.debug("cb:" + str(block))
+                if params.timer_flag == mtimer.getindex():
+                    raise e
+
 
     else:
         updated_count_number = visited_edges[current_edge] - 1
@@ -1025,6 +1130,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     global unsafecall_affect_list
     global sr_result
     global safe_call_block
+    global solverstack
+    global mtimer
 
     stack = params.stack
     mem = params.mem
@@ -1050,11 +1157,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     current_call_target = params.current_call_target
     graph = params.graph
     loop_edge_dic = params.loop_edge_dic
+    timer_flag = params.timer_flag
 
     visited_pcs.add(global_state["pc"])
 
     instr_parts = str.split(instr, ' ')
     opcode = instr_parts[0]
+
+    # mtimer.calc_time()
 
     if opcode == "INVALID":
         return
@@ -1064,8 +1174,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             source_code = source_code.split("(")[0]
             func_name = source_code.strip()
             model = None
-            if check_sat(solver, False):
-                model = solver.get_model()
+            ret = check_sat_and_get_model(solver_stack, False)
+            if ret[0]:
+                model = ret[1]
             if func_name == "assert":  # shifou function assert
                 global_problematic_pcs["assertion_failure"].append(Assertion(global_state["pc"], model))  # pc, model
             elif func_call != -1:
@@ -1113,6 +1224,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             call_result["current_call_target"] = params.current_call_target
             call_result["graph"] = graph
             call_result["loop_edge_dic"] = loop_edge_dic
+            call_result["timer_flag"] = params.timer_flag
 
             call_block = params.call_block
             call_result_list = params_backup[call_block].call_result_list
@@ -1210,13 +1322,13 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 first = to_symbolic(first)
                 second = to_symbolic(second)
-                solver.push()
-                solver.add_assertion(NotEquals(second, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(second, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     computed = 0
                 else:
                     computed = BVUDiv(first, second).simplify()
-                solver.pop()
+                solver_stack.pop()
             # computed = computed.simplify() if isSymbolic(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1239,29 +1351,29 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 first = to_symbolic(first)
                 second = to_symbolic(second)
-                solver.push()
-                solver.add_assertion(NotEquals(second, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(second, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     computed = 0
                 else:
-                    solver.push()
+                    solver_stack.push()
                     # solver.add( Not( And(first == -2**255, second == -1 ) ))
-                    solver.add_assertion(Not(And(Equals(first, BV(CONSTANT_MAX_NEG255, 256)), Equals(second, BV(CONSTANT_MAX_FF256, 256)))))
-                    if not check_sat(solver):
+                    solver_stack.add(Not(And(Equals(first, BV(CONSTANT_MAX_NEG255, 256)), Equals(second, BV(CONSTANT_MAX_FF256, 256)))))
+                    if not check_sat(solver_stack, mtimer):
                         # computed = -2**255
                         computed = CONSTANT_MAX_NEG255
                     else:
-                        # solver.push()
-                        # solver.add_assertion(BVSLT(BVSDiv(first, second), BVZero(256)))
-                        # sign = -1 if check_sat(solver) is True else 1
+                        # solver_stack.push()
+                        # solver_stack.add(BVSLT(BVSDiv(first, second), BVZero(256)))
+                        # sign = -1 if check_sat(solver_stack) is True else 1
                         # # z3_abs = lambda x: If(x >= 0, x, -x)
                         # first = BV_abs(first)
                         # second = BV_abs(second)
                         # computed = BVMul(SBV(sign, 256), BVUDiv(first, second))
-                        # solver.pop()
+                        # solver_stack.pop()
                         computed = BVSDiv(first, second).simplify()
-                    solver.pop()
-                solver.pop()
+                    solver_stack.pop()
+                solver_stack.pop()
             # computed = computed.simplify() if is_expr(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1283,14 +1395,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 first = to_symbolic(first)
                 second = to_symbolic(second)
 
-                solver.push()
-                solver.add_assertion(NotEquals(second, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(second, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     # it is provable that second is indeed equal to zero
                     computed = 0
                 else:
                     computed = BVURem(first, second).simplify()
-                solver.pop()
+                solver_stack.pop()
 
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
@@ -1313,17 +1425,17 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 first = to_symbolic(first)
                 second = to_symbolic(second)
 
-                solver.push()
-                solver.add_assertion(NotEquals(second, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(second, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     # it is provable that second is indeed equal to zero
                     computed = 0
                 else:
-                    # solver.push()
+                    # solver_stack.push()
                     # solver.add(first < 0) # check sign of first element
-                    # sign = BitVecVal(-1, 256) if check_sat(solver) == sat \
+                    # sign = BitVecVal(-1, 256) if check_sat(solver_stack) == sat \
                     #     else BitVecVal(1, 256)
-                    # solver.pop()
+                    # solver_stack.pop()
                     #
                     # z3_abs = lambda x: If(x >= 0, x, -x)
                     # first = z3_abs(first)
@@ -1331,7 +1443,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     #
                     # computed = sign * (first % second)
                     computed = BVSRem(first, second).simplify()
-                solver.pop()
+                solver_stack.pop()
 
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
@@ -1353,9 +1465,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 first = to_symbolic(first)
                 second = to_symbolic(second)
                 third = to_symbolic(third)
-                solver.push()
-                solver.add_assertion(NotEquals(third, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(third, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     computed = 0
                 else:
                     first = BVZExt(first, 256)
@@ -1363,7 +1475,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     third = BVZExt(third, 256)
                     computed = BVURem(BVAdd(first, second), third)
                     computed = BVExtract(computed, 0, 255).simplify()
-                solver.pop()
+                solver_stack.pop()
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1384,9 +1496,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 first = to_symbolic(first)
                 second = to_symbolic(second)
                 third = to_symbolic(third)
-                solver.push()
-                solver.add_assertion(NotEquals(third, BVZero(256)))
-                if not check_sat(solver):
+                solver_stack.push()
+                solver_stack.add(NotEquals(third, BVZero(256)))
+                if not check_sat(solver_stack, mtimer):
                     computed = 0
                 else:
                     first = BVZExt(first, 256)
@@ -1394,7 +1506,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     third = BVZExt(third, 256)
                     computed = BVURem(BVMul(first, second), third)
                     computed = BVExtract(computed, 0, 255).simplify()
-                solver.pop()
+                solver_stack.pop()
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1433,25 +1545,25 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 first = to_symbolic(first)
                 second = to_symbolic(second)
-                solver.push()
-                solver.add_assertion(Not(Or(BVSLE(32, first), BVSLT(first, 0))))
+                solver_stack.push()
+                solver_stack.add(Not(Or(BVSLE(32, first), BVSLT(first, 0))))
                 # solver.add( Not( Or(first >= 32, first < 0 ) ) )
-                if not check_sat(solver):
+                if not check_sat(solver_stack, mtimer):
                     computed = second.simplify()
                 else:
                     # signbit_index_from_right = 8 * first + 7
                     signbit_index_from_right = BVAdd(BVMul(BV(8, 256), first), BV(7, 256))
-                    solver.push()
+                    solver_stack.push()
                     # solver.add(second & (1 << signbit_index_from_right) == 0)
-                    solver.add_assertion(Equals(BVAnd(second, BVLShl(BV(1, 256), signbit_index_from_right)), BVZero(256)))
-                    if not check_sat(solver):
+                    solver_stack.add(Equals(BVAnd(second, BVLShl(BV(1, 256), signbit_index_from_right)), BVZero(256)))
+                    if not check_sat(solver_stack, mtimer):
                         # computed = second | (2 ** 256 - (1 << signbit_index_from_right))
                         computed = BVOr(second, BVNeg(BVLShl(BV(1, 256), signbit_index_from_right))).simplify()
                     else:
                         # computed = second & ((1 << signbit_index_from_right) - 1)
                         computed = BVAnd(second, BVSub(BVLShl(BV(1, 256), signbit_index_from_right), BV(1, 256))).simplify()
-                    solver.pop()
-                solver.pop()
+                    solver_stack.pop()
+                solver_stack.pop()
             # computed = simplify(computed) if is_expr(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1633,10 +1745,10 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 first = to_symbolic(first)
                 second = to_symbolic(second)
-                solver.push()
+                solver_stack.push()
                 # solver.add( Not (Or( first >= 32, first < 0 ) ) )
-                solver.add_assertion(Not(Or(BVSGE(first, BV(32, 256)), BVSLT(first, BVZero(256)))))
-                if not check_sat(solver):
+                solver_stack.add(Not(Or(BVSGE(first, BV(32, 256)), BVSLT(first, BVZero(256)))))
+                if not check_sat(solver_stack, mtimer):
                     computed = 0
                 else:
                     byte_index = to_symbolic(byte_index)
@@ -1644,7 +1756,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     computed = BVAnd(BV(second, 256), BVLShl(BV(255, 256), BVMul(BV(8, 256), BV(byte_index, 256))))
                     # computed = computed >> (8 * byte_index)
                     computed = BVAShr(computed, BVMul(BV(8, 256), BV(byte_index, 256)))
-                solver.pop()
+                solver_stack.pop()
             computed = computed.simplify() if isSymbolic(computed) else computed
             stack.insert(0, computed)
         else:
@@ -1822,13 +1934,13 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # expression = current_miu_i < temp
                 temp = to_symbolic(temp)
                 expression = BVSLT(current_miu_i, temp).simplify()
-                solver.push()
-                solver.add_assertion(expression)
+                solver_stack.push()
+                solver_stack.add(expression)
                 if MSIZE:
-                    if check_sat(solver):
+                    if check_sat(solver_stack, mtimer):
                         # current_miu_i = If(expression, temp, current_miu_i)
                         current_miu_i = Ite(expression, temp, current_miu_i)
-                solver.pop()
+                solver_stack.pop()
                 mem.clear() # very conservative
                 mem[str(mem_location)] = new_var
             global_state["miu_i"] = current_miu_i
@@ -1908,13 +2020,13 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # expression = current_miu_i < temp
                 temp = to_symbolic(temp)
                 expression = BVSLT(current_miu_i, temp).simplify()
-                solver.push()
-                solver.add_assertion(expression)
+                solver_stack.push()
+                solver_stack.add(expression)
                 if MSIZE:
-                    if check_sat(solver):
+                    if check_sat(solver_stack, mtimer):
                         # current_miu_i = If(expression, temp, current_miu_i)
                         current_miu_i = Ite(expression, temp, current_miu_i)
-                solver.pop()
+                solver_stack.pop()
                 mem.clear() # very conservative
                 mem[str(mem_location)] = new_var
             global_state["miu_i"] = current_miu_i
@@ -1987,14 +2099,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # expression = current_miu_i < temp
                 temp = to_symbolic(temp)
                 expression = BVSLT(current_miu_i, temp).simplify()
-                solver.push()
-                solver.add_assertion(expression)
+                solver_stack.push()
+                solver_stack.add(expression)
                 if MSIZE:
-                    if check_sat(solver):
+                    if check_sat(solver_stack, mtimer):
                         # this means that it is possibly that current_miu_i < temp
                         # current_miu_i = If(expression, temp, current_miu_i)
                         current_miu_i = Ite(expression, temp, current_miu_i)
-                solver.pop()
+                solver_stack.pop()
                 new_var_name = gen.gen_mem_var(address)
                 if new_var_name in path_conditions_and_vars:
                     new_var = path_conditions_and_vars[new_var_name]
@@ -2046,14 +2158,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # expression = current_miu_i < temp
                 temp = to_symbolic(temp)
                 expression = BVSLT(current_miu_i, temp).simplify()
-                solver.push()
-                solver.add_assertion(expression)
+                solver_stack.push()
+                solver_stack.add(expression)
                 if MSIZE:
-                    if check_sat(solver):
+                    if check_sat(solver_stack, mtimer):
                         # this means that it is possibly that current_miu_i < temp
                         # current_miu_i = If(expression, temp, current_miu_i)
                         current_miu_i = Ite(expression, temp, current_miu_i)
-                solver.pop()
+                solver_stack.pop()
                 mem.clear()  # very conservative
                 mem[str(stored_address)] = stored_value
             global_state["miu_i"] = current_miu_i
@@ -2088,14 +2200,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 # expression = current_miu_i < temp
                 temp = to_symbolic(temp)
                 expression = BVSLT(current_miu_i, temp).simplify()
-                solver.push()
-                solver.add_assertion(expression)
+                solver_stack.push()
+                solver_stack.add(expression)
                 if MSIZE:
-                    if check_sat(solver):
+                    if check_sat(solver_stack, mtimer):
                         # this means that it is possibly that current_miu_i < temp
                         # current_miu_i = If(expression, temp, current_miu_i)
                         current_miu_i = Ite(expression, temp, current_miu_i)
-                solver.pop()
+                solver_stack.pop()
                 mem.clear()  # very conservative
                 mem[str(stored_address)] = stored_value
             global_state["miu_i"] = current_miu_i
@@ -2332,23 +2444,23 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             balance_ia = to_symbolic(balance_ia)
             # is_enough_fund = (transfer_amount <= balance_ia)
             is_enough_fund = BVSLE(transfer_amount, balance_ia)
-            solver.push()
-            solver.add_assertion(is_enough_fund)
+            solver_stack.push()
+            solver_stack.add(is_enough_fund)
             # print("is_enough_fund:", is_enough_fund)
             # print("z3:",solver)
 
             # 只要不是unsat，就认为有解，避免timeout
-            if not check_sat(solver):
+            if not check_sat(solver_stack, mtimer):
                 # this means not enough fund, thus the execution will result in exception
-                solver.pop()
+                solver_stack.pop()
                 stack.insert(0, 0)
                 flag_judge = False
             else:
                 # the execution is possibly okay
                 stack.insert(0, 1)
                 flag_judge = True
-                solver.pop()
-                solver.add_assertion(is_enough_fund)
+                solver_stack.pop()
+                solver_stack.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
                 # new_balance_ia = (balance_ia - transfer_amount)
                 new_balance_ia = BVSub(balance_ia, transfer_amount)
@@ -2356,16 +2468,16 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 address_is = path_conditions_and_vars["Is"]
                 address_is = to_symbolic(address_is & CONSTANT_ONES_159)
                 boolean_expression = NotEquals(to_symbolic(recipient), address_is)
-                solver.push()
-                solver.add_assertion(boolean_expression)
+                solver_stack.push()
+                solver_stack.add(boolean_expression)
                 # print("transfer_amount:",transfer_amount,"balance_ia:",balance_ia)
                 # print("boolean_expression:",boolean_expression)
-                if not check_sat(solver):
-                    solver.pop()
+                if not check_sat(solver_stack, mtimer):
+                    solver_stack.pop()
                     new_balance_is = (global_state["balance"]["Is"] + transfer_amount)
                     global_state["balance"]["Is"] = new_balance_is
                 else:
-                    solver.pop()
+                    solver_stack.pop()
                     if isReal(recipient):
                         new_address_name = "concrete_address_" + str(recipient)
                     else:
@@ -2374,7 +2486,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     old_balance = Symbol(old_balance_name, BVType(256))
                     path_conditions_and_vars[old_balance_name] = old_balance
                     constraint = BVSGE(old_balance, BVZero(256))
-                    solver.add_assertion(constraint)
+                    solver_stack.add(constraint)
                     path_conditions_and_vars["path_condition"].append(constraint)
                     new_balance = BVAdd(old_balance, transfer_amount)
                     global_state["balance"][new_address_name] = new_balance
@@ -2384,11 +2496,11 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 if unsafecall:   # is not safe call and call success
                     # print("unsafecall!")
                     # check transfer_amount > 0
-                    # solver.push()
+                    # solver_stack.push()
                     # print("transfer_amount:", transfer_amount)
-                    # solver.add_assertion(BVSGT(transfer_amount, BVZero(256)))
-                    # res = check_sat(solver, False)
-                    # solver.pop()
+                    # solver_stack.add(BVSGT(transfer_amount, BVZero(256)))
+                    # res = check_sat(solver_stack, False)
+                    # solver_stack.pop()
                     # if res:
                     #     params.call_value_flag = CONSTANT_TRUE
                     # else:
@@ -2407,19 +2519,28 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                         params_backup[block].graph = graph.copy()
                         storage_backup = global_state["Ia"].copy()  # storage backup
                         for func_addr in function_sig_list:
-                            Global_Flags.call_target = func_addr
-                            vertices[block].set_call_target(Global_Flags.call_target)
-                            # successor = vertices[block].get_falls_to()
-                            new_params = params.copy()
-                            new_params.graph = graph.copy()
-                            new_params.global_state["pc"] = Global_Flags.call_target
-                            new_params.current_call_target = Global_Flags.call_target
-                            new_params.current_flow.append(Global_Flags.call_target)
-                            new_params.in_call_flow.append(Global_Flags.call_target)
-                            reentry_key_pcs.append(Global_Flags.call_target)
-                            new_params.reentry_key_pcs = reentry_key_pcs
-                            sym_exec_block(new_params, Global_Flags.call_target, block, depth, func_call, current_func_name)  # 跳转
-                            reentry_key_pcs.pop()
+                            try:
+                                Global_Flags.call_target = func_addr
+                                vertices[block].set_call_target(Global_Flags.call_target)
+                                # successor = vertices[block].get_falls_to()
+                                new_params = params.copy()
+                                new_params.graph = graph.copy()
+                                new_params.global_state["pc"] = Global_Flags.call_target
+                                new_params.current_call_target = Global_Flags.call_target
+                                new_params.current_flow.append(Global_Flags.call_target)
+                                new_params.in_call_flow.append(Global_Flags.call_target)
+                                reentry_key_pcs.append(Global_Flags.call_target)
+                                new_params.reentry_key_pcs = reentry_key_pcs
+                                sym_exec_block(new_params, Global_Flags.call_target, block, depth, func_call, current_func_name)  # 跳转
+                                reentry_key_pcs.pop()
+                            except TimerFunctionError as e:
+                                log.debug("TimerFunctionError:")
+                                log.debug("params.timer_flag:" + str(params.timer_flag) + "mtimer.getindex():" + str(
+                                    mtimer.getindex()))
+                                log.debug("cfl:" + str(params.current_flow))
+                                log.debug("cb:" + str(block))
+                                reentry_key_pcs.pop()
+                                pass
 
                         Global_Flags.call_flag = unlock_var(Global_Flags.call_flag)
                         # print("endcallkeys:", reentry_key_pcs)
@@ -2468,18 +2589,18 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             balance_ia = to_symbolic(balance_ia)
             # is_enough_fund = (transfer_amount <= balance_ia)
             is_enough_fund = BVSLE(transfer_amount, balance_ia)
-            solver.push()
-            solver.add_assertion(is_enough_fund)
+            solver_stack.push()
+            solver_stack.add(is_enough_fund)
 
-            if not check_sat(solver):
+            if not check_sat(solver_stack, mtimer):
                 # this means not enough fund, thus the execution will result in exception
-                solver.pop()
+                solver_stack.pop()
                 stack.insert(0, 0)
             else:
                 # the execution is possibly okay
                 stack.insert(0, 1)
-                solver.pop()
-                solver.add_assertion(is_enough_fund)
+                solver_stack.pop()
+                solver_stack.add(is_enough_fund)
                 path_conditions_and_vars["path_condition"].append(is_enough_fund)
         else:
             raise ValueError('STACK underflow')
@@ -2537,6 +2658,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 call_result["current_call_target"] = params.current_call_target
                 call_result["graph"] = graph
                 call_result["loop_edge_dic"] = loop_edge_dic
+                call_result["timer_flag"] = params.timer_flag
 
                 call_block = params.call_block
                 call_result_list = params_backup[call_block].call_result_list
@@ -2577,7 +2699,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         old_balance = Symbol(old_balance_name, BVType(256))
         path_conditions_and_vars[old_balance_name] = old_balance
         constraint = BVSGE(old_balance, BVZero(256))
-        solver.add_assertion(constraint)
+        solver_stack.add(constraint)
         path_conditions_and_vars["path_condition"].append(constraint)
         new_balance = BVAdd(old_balance, to_symbolic(transfer_amount))
         global_state["balance"][new_address_name] = new_balance
@@ -2740,9 +2862,9 @@ def run_build_cfg_and_analyze(timeout_cb=do_nothing):
     global g_timeout
 
     try:
-        build_cfg_and_analyze()
-        # with Timeout(sec=global_params.GLOBAL_TIMEOUT):
-        #     build_cfg_and_analyze()
+        # build_cfg_and_analyze()
+        with Timeout(sec=10):
+            build_cfg_and_analyze()
         log.debug('Done Symbolic execution')
     except TimeoutError:
         g_timeout = True

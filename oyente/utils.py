@@ -15,10 +15,10 @@ import re
 import difflib
 import six
 from constant import *
-from pebble import concurrent
-from concurrent.futures import TimeoutError
+# from pebble import concurrent
+# from concurrent.futures import TimeoutError
 import time
-from multiprocessing import Pool
+from multiprocessing import Pool, TimeoutError
 # import timeout_decorator
 # from func_timeout import func_set_timeout, FunctionTimedOut
 from pysmt.typing import BVType
@@ -53,6 +53,49 @@ class Timeout:
 
 def do_nothing():
     pass
+
+"""A custom exception used to report errors in use of Timer class"""
+class TimerFunctionError(Exception):
+    pass
+
+class MTimer:
+    def __init__(self, overtime):
+        self._start_time = None
+        self._overtime = overtime
+        self._index = 0
+
+    """Start a new timer"""
+    def start(self):
+        if self._start_time is not None:
+            raise TimerFunctionError(f"Timer is running. Use .stop() to stop it")
+        self._start_time = time.perf_counter()
+        self._index += 1
+
+    """Restart a new timer"""
+    def restart(self):
+        self._start_time = time.perf_counter()
+        self._index += 1
+
+    """Stop the timer, and report the elapsed time"""
+    def stop(self):
+        if self._start_time is None:
+            raise TimerFunctionError(f"Timer is not running. Use .start() to start it")
+        elapsed_time = time.perf_counter() - self._start_time
+        self._start_time = None
+        self._index = 0
+        return elapsed_time
+        # print(f"Elapsed time: {elapsed_time:0.4f} seconds")
+
+    def calc_time(self):
+        endtime = self._start_time + self._overtime
+        if time.perf_counter() > endtime:
+            print("overtiming!")
+            self._start_time = time.perf_counter()
+            raise TimerFunctionError("Reach function global time. Terminating this function ...")
+
+    def getindex(self):
+        return self._index
+
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -137,60 +180,57 @@ def to_signed(number):
         return number
 
 
-# # 只要不是unsat，就认为有解，避免timeout
-# def check_unsat(solver):
-#     try:
-#         ret = solver.check()
-#         if ret != unsat:
-#             return sat
-#     except Exception as e:
-#         return sat
-
-# @concurrent.process(global_params.TIMEOUT)
-# def check_timeout(solver, pop_if_exception=True):
-# @func_set_timeout(global_params.TIMEOUT)
-def check_sat(solver, pop_if_exception=True):
-    with Pool(2) as p:
+def check_sat(solver_stack, mtimer, pop_if_exception=True):
+    mtimer.calc_time()
+    stack = solver_stack.getstack()
+    with Pool(1) as p:
+        # print("before checksat:", time.time())
+        res = p.apply_async(check_timeout, (stack,))
         try:
-            print("before checksat:", time.time())
-            ret = p.map(check_timeout, (solver,))
-            print("after checksat:", time.time())
+            ret = res.get(timeout=global_params.TIMEOUT)
+            # print("after checksat:", time.time())
             if ret not in (True, False):
                 print("result error!")
                 raise SolverReturnedUnknownResultError()
         except TimeoutError as e:
             print("other exception!", e)
             if pop_if_exception:
-                solver.pop()
+                solver_stack.pop()
             raise e
         return ret
 
-    '''
-    try:
-        print("before checksat:", time.time())
-        # with Timeout(sec=global_params.TIMEOUT):
-        #     ret = solver.solve()
-        ret = solver.solve()
-        print("after checksat:", time.time())
-        if ret not in (True, False):
-            print("result error!")
-            raise SolverReturnedUnknownResultError()
-    except Exception as e:
-        print("other exception!", e)
-        if pop_if_exception:
-            solver.pop()
-        raise e
-    return ret
-    '''
+
+def check_sat_and_get_model(solver_stack, pop_if_exception=True):
+    stack = solver_stack.getstack()
+    with Pool(1) as p:
+        res = p.apply_async(check_timeout_and_get_model, (stack,))
+        try:
+            ret = res.get(timeout=global_params.TIMEOUT)
+            if ret[0] not in (True, False):
+                raise SolverReturnedUnknownResultError()
+        except TimeoutError as e:
+            if pop_if_exception:
+                solver_stack.pop()
+            raise e
+        return ret
 
 
-@concurrent.process(global_params.TIMEOUT)
-def check_timeout(solver):
-    ret = solver.solve()
-    # try:
-    #     print(ret.result())
-    # except TimeoutError:
-    #     print("Timeout!")
+def check_timeout_and_get_model(stack):
+    with Solver(name="yices", logic="QF_BV", incremental=True) as s:
+        for problem in stack:
+            s.add_assertion(problem)
+        ret = s.solve()
+        if ret is True:
+            model = s.get_model()
+        else:
+            model = None
+    return ret, model
+
+def check_timeout(stack):
+    with Solver(name="yices", logic="QF_BV", incremental=True) as s:
+        for problem in stack:
+            s.add_assertion(problem)
+        ret = s.solve()
     return ret
 
 
