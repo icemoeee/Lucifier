@@ -60,20 +60,3 @@ class Graph:
         tmp.verticeSet = self.verticeSet.copy()
         return tmp
 
-if __name__ == '__main__':
-    a = Graph()
-    a.addEdge((5, 80))
-    a.addEdge((5, 81))
-    a.addEdge((6, 5))
-    a.addEdge((1306, 1315))
-    a.addEdge((1315, 1306))
-    print(a.isCyclic())
-    b = a.copy()
-    b.removeEdge((6, 5))
-    b.removeEdge((5, 80))
-    b.addEdge((7, 9))
-    b.isCyclic()
-    print("a:", a.edgeSet)
-    print("a:", a.graph)
-    print("b:", b.edgeSet)
-    print("b:", b.graph)

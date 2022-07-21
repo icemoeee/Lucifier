@@ -11,14 +11,14 @@ DEBUG_MODE = 0
 CHECK_CONCURRENCY_FP = 0
 
 # Timeout for yices in seconds
-TIMEOUT = 3
+TIMEOUT = 1
 
 # Set this flag to 2 if we want to do evm real value unit test
 # Set this flag to 3 if we want to do evm symbolic unit test
 UNIT_TEST = 0
 
 # timeout to run symbolic execution (in secs)
-GLOBAL_TIMEOUT = 5
+GLOBAL_TIMEOUT = 1
 
 # timeout to run symbolic execution (in secs) for testing
 GLOBAL_TIMEOUT_TEST = 2
@@ -33,7 +33,7 @@ WEB = 0
 STORE_RESULT = 0
 
 # depth limit for DFS
-DEPTH_LIMIT = 500
+DEPTH_LIMIT = 100
 
 GAS_LIMIT = 4000000
 

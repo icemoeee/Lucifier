@@ -60,42 +60,49 @@ class TimerFunctionError(Exception):
 
 class MTimer:
     def __init__(self, overtime):
-        self._start_time = None
+        self._start_time = 0
         self._overtime = overtime
-        self._index = 0
+        self._function_time = 0
 
     """Start a new timer"""
     def start(self):
-        if self._start_time is not None:
-            raise TimerFunctionError(f"Timer is running. Use .stop() to stop it")
         self._start_time = time.perf_counter()
-        self._index += 1
-
-    """Restart a new timer"""
-    def restart(self):
-        self._start_time = time.perf_counter()
-        self._index += 1
-
-    """Stop the timer, and report the elapsed time"""
-    def stop(self):
-        if self._start_time is None:
-            raise TimerFunctionError(f"Timer is not running. Use .start() to start it")
-        elapsed_time = time.perf_counter() - self._start_time
-        self._start_time = None
-        self._index = 0
-        return elapsed_time
-        # print(f"Elapsed time: {elapsed_time:0.4f} seconds")
 
     def calc_time(self):
-        endtime = self._start_time + self._overtime
-        if time.perf_counter() > endtime:
-            print("overtiming!")
-            self._start_time = time.perf_counter()
-            raise TimerFunctionError("Reach function global time. Terminating this function ...")
+        # print("calc...","over:",self._overtime,"now:", time.perf_counter(),"start:",self._start_time,"func:",self._function_time)
+        if self._overtime < time.perf_counter() -self._start_time - self._function_time:
+            print("overtiming!","over:",self._overtime,"now:", time.perf_counter(),"start:",self._start_time,"func:",self._function_time)
+            return True
+        return False
+            # raise TimerFunctionError("Reach function global time. Terminating this function ...")
 
-    def getindex(self):
-        return self._index
+    def getfunctiontime(self):
+        return self._function_time
 
+    def setfunctiontime(self, functiontime):
+        self._function_time = functiontime
+
+    def addfunctiontime(self, functiontime):
+        self._function_time += functiontime
+
+    def getduration(self):
+        return time.perf_counter() - self._start_time
+
+    def setovertime(self, overtime):
+        self._overtime = overtime
+
+    def copy(self):
+        tmp = MTimer(self._overtime)
+        tmp._start_time = self._start_time
+        tmp._overtime = self._overtime
+        tmp._function_time = self._function_time
+        return tmp
+
+    def display(self):
+        print("overtime:", self._overtime)
+        print("starttime:", self._start_time)
+        print("functiontime:", self._function_time)
+        print("duration:", self.getduration())
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -180,8 +187,7 @@ def to_signed(number):
         return number
 
 
-def check_sat(solver_stack, mtimer, pop_if_exception=True):
-    mtimer.calc_time()
+def check_sat(solver_stack, pop_if_exception=True):
     stack = solver_stack.getstack()
     with Pool(1) as p:
         # print("before checksat:", time.time())
