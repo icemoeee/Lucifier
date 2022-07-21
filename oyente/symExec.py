@@ -77,7 +77,7 @@ class Parameter:
             "graph": Graph(),
             "loop_edge_dic": {},
             "timer_flag": CONSTANT_ZERO,
-            "mtimer": MTimer(global_params.GLOBAL_TIMEOUT)
+            "mtimer": MTimer(global_params.FUNCTION_TIMEOUT)
         }
         for (attr, default) in six.iteritems(attr_defaults):
             setattr(self, attr, kwargs.get(attr, default))
@@ -162,6 +162,9 @@ def initGlobalVars():
 
     # global call_result_list  # 记录当前路径call结果
     # call_result_list = []
+
+    global global_excution_timer
+    global_excution_timer = MTimer(global_params.GLOBAL_TIMEOUT)
 
     global function_sig_list
     function_sig_list = []
@@ -661,6 +664,7 @@ def get_start_block_to_func_sig():
 def full_sym_exec():
     global function_sig_address
     global function_sig_list
+    global global_excution_timer
     # global call_target
 
     # executing, starting from beginning
@@ -682,6 +686,7 @@ def full_sym_exec():
         Global_Flags.call_target = CONSTANT_ZERO
     params.current_flow.append(0)
     params.mtimer.start()
+    global_excution_timer.start()
     return sym_exec_block(params, 0, 0, 0, -1, 'fallback')
 
 
@@ -868,6 +873,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 raise e
             mtimer.addfunctiontime(new_params.mtimer.getduration())
             Global_Flags.timer_flag = CONSTANT_ZERO
+        except GlobalTimeOutError as e:
+            raise e
     elif jump_type[block] == "falls_to":  # just follow to the next basic block
         successor = vertices[block].get_falls_to()
         new_params = params.copy()
@@ -894,6 +901,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 raise e
             mtimer.addfunctiontime(new_params.mtimer.getduration())
             Global_Flags.timer_flag = CONSTANT_ZERO
+        except GlobalTimeOutError as e:
+            raise e
     elif jump_type[block] == "conditional":  # executing "JUMPI"
 
         # A choice point, we proceed with depth first search
@@ -944,6 +953,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 log.debug("Timeout!")
                 print("Timeout!", e)
                 # raise
+            except GlobalTimeOutError as e:
+                raise e
             except Exception as e:
                 log.debug("ERROR!")
                 traceback.print_exc()
@@ -955,6 +966,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 raise e
             mtimer.addfunctiontime(new_params.mtimer.getduration())
             Global_Flags.timer_flag = CONSTANT_ZERO
+        except GlobalTimeOutError as e:
+            raise e
 
         if branch_expression is not None:
             solver_stack.pop()  # POP SOLVER CONTEXT
@@ -1006,6 +1019,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             except TimeoutError as e:
                 print("timeout error!", e)
                 # raise
+            except GlobalTimeOutError as e:
+                raise e
             except Exception as e:
                 traceback.print_exc()
                 if global_params.DEBUG_MODE:
@@ -1016,6 +1031,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 raise e
             mtimer.addfunctiontime(new_params.mtimer.getduration())
             Global_Flags.timer_flag = CONSTANT_ZERO
+        except GlobalTimeOutError as e:
+            raise e
         if branch_expression is not None:
             solver_stack.pop()  # POP SOLVER CONTEXT
         updated_count_number = visited_edges[current_edge] - 1
@@ -1054,6 +1071,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                     except TimerFunctionError as e:
                         mtimer.addfunctiontime(new_params.mtimer.getduration())
                         # params = restore_params.copy()
+                    except GlobalTimeOutError as e:
+                        raise e
                 params.been_call = unlock_var(been_call)
                 # call_result_list = []
                 # Global_Flags.path_index = 0
@@ -1070,6 +1089,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 except TimerFunctionError as e:
                     mtimer.setfunctiontime(new_params.mtimer.getfunctiontime())
                     raise e
+                except GlobalTimeOutError as e:
+                    raise e
 
         else:
             # 在call途中
@@ -1084,6 +1105,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 mtimer.setfunctiontime(new_params.mtimer.getfunctiontime())
             except TimerFunctionError as e:
                 mtimer.setfunctiontime(new_params.mtimer.getfunctiontime())
+                raise e
+            except GlobalTimeOutError as e:
                 raise e
 
 
@@ -1114,6 +1137,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     global sr_result
     global safe_call_block
     global solverstack
+    global global_excution_timer
 
 
     stack = params.stack
@@ -1148,10 +1172,19 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     instr_parts = str.split(instr, ' ')
     opcode = instr_parts[0]
 
+    # calc function time
     calc_ret = mtimer.calc_time()
     if calc_ret is True:
         Global_Flags.timer_flag = params.timer_flag
-        raise TimerFunctionError("Reach function global time. Terminating this function ...")
+        print("Reach function executing time.")
+        raise TimerFunctionError("Reach function executing time. Terminating this function ...")
+
+    # calc global time
+    global_exeret = global_excution_timer.calc_time()
+    if global_exeret is True:
+        print("Reach global execution time.")
+        raise GlobalTimeOutError("Reach global execution time. Terminating the sym_execution ...")
+
 
     if opcode == "INVALID":
         return
@@ -2528,7 +2561,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                                 mtimer.addfunctiontime(new_params.mtimer.getduration())
                                 # params_backup[block].mtimer.addfunctiontime(new_params.mtimer.getduration())
                                 reentry_key_pcs.pop()
-                                pass
+                            except GlobalTimeOutError as e:
+                                raise e
 
                         Global_Flags.call_flag = unlock_var(Global_Flags.call_flag)
                         # print("endcallkeys:", reentry_key_pcs)
@@ -2854,7 +2888,7 @@ def run_build_cfg_and_analyze(timeout_cb=do_nothing):
         # with Timeout(sec=10):
         #     build_cfg_and_analyze()
         log.debug('Done Symbolic execution')
-    except TimeoutError:
+    except GlobalTimeOutError:
         g_timeout = True
         timeout_cb()
     except Exception as e:

@@ -31,32 +31,42 @@ from pysmt.shortcuts import Solver, BVAnd, BVOr, BVXor, BVConcat, BVULT, BVUGT, 
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError, SolverReturnedUnknownResultError, SolverAPINotFound)
 
+
 # class TimeoutError(Exception):
 #     pass
 
 class Timeout:
-   """Timeout class using ALARM signal."""
+    """Timeout class using ALARM signal."""
 
-   def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
-       self.sec = sec
-       self.error_message = error_message
+    def __init__(self, sec=10, error_message=os.strerror(errno.ETIME)):
+        self.sec = sec
+        self.error_message = error_message
 
-   def __enter__(self):
-       signal.signal(signal.SIGALRM, self._handle_timeout)
-       signal.alarm(self.sec)
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self._handle_timeout)
+        signal.alarm(self.sec)
 
-   def __exit__(self, *args):
-       signal.alarm(0)    # disable alarm
+    def __exit__(self, *args):
+        signal.alarm(0)  # disable alarm
 
-   def _handle_timeout(self, signum, frame):
-       raise TimeoutError(self.error_message)
+    def _handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+
 
 def do_nothing():
     pass
 
+
 """A custom exception used to report errors in use of Timer class"""
+
+
 class TimerFunctionError(Exception):
     pass
+
+
+class GlobalTimeOutError(Exception):
+    pass
+
 
 class MTimer:
     def __init__(self, overtime):
@@ -65,16 +75,18 @@ class MTimer:
         self._function_time = 0
 
     """Start a new timer"""
+
     def start(self):
         self._start_time = time.perf_counter()
 
     def calc_time(self):
         # print("calc...","over:",self._overtime,"now:", time.perf_counter(),"start:",self._start_time,"func:",self._function_time)
-        if self._overtime < time.perf_counter() -self._start_time - self._function_time:
-            print("overtiming!","over:",self._overtime,"now:", time.perf_counter(),"start:",self._start_time,"func:",self._function_time)
+        if self._overtime < time.perf_counter() - self._start_time - self._function_time:
+            # print("overtiming!", "over:", self._overtime, "now:", time.perf_counter(), "start:", self._start_time,
+            #       "func:", self._function_time)
             return True
         return False
-            # raise TimerFunctionError("Reach function global time. Terminating this function ...")
+        # raise TimerFunctionError("Reach function global time. Terminating this function ...")
 
     def getfunctiontime(self):
         return self._function_time
@@ -103,6 +115,7 @@ class MTimer:
         print("starttime:", self._start_time)
         print("functiontime:", self._function_time)
         print("duration:", self.getduration())
+
 
 def ceil32(x):
     return x if x % 32 == 0 else x + 32 - (x % 32)
@@ -231,6 +244,7 @@ def check_timeout_and_get_model(stack):
         else:
             model = None
     return ret, model
+
 
 def check_timeout(stack):
     with Solver(name="yices", logic="QF_BV", incremental=True) as s:
