@@ -209,10 +209,10 @@ def check_sat(solver_stack, pop_if_exception=True):
             ret = res.get(timeout=global_params.TIMEOUT)
             # print("after checksat:", time.time())
             if ret not in (True, False):
-                print("result error!")
+                # print("result error!")
                 raise SolverReturnedUnknownResultError()
         except TimeoutError as e:
-            print("other exception!", e)
+            # print("other exception!", e)
             if pop_if_exception:
                 solver_stack.pop()
             raise e

@@ -491,11 +491,11 @@ def collect_vertices(tokens):
         if key not in jump_type:
             jump_type[key] = "falls_to"
 
-    for k in instructions.keys():
-        print("k:", k, "v:", instructions[k])
-    for key in end_ins_dict:
-        print("end_ins_k:", key, "end_ins_v:", end_ins_dict[key])
-        print("jump_type:", jump_type[key])
+    # for k in instructions.keys():
+    #     print("k:", k, "v:", instructions[k])
+    # for key in end_ins_dict:
+    #     print("end_ins_k:", key, "end_ins_v:", end_ins_dict[key])
+    #     print("jump_type:", jump_type[key])
 
 def construct_bb():
     global vertices # key:begin address, value: BasicBlock(begin,end)
@@ -786,12 +786,12 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         Global_Flags.timer_flag = params.timer_flag
         params.timer_flag += 1
         mtimer.start()
-        print("excute function:", params.timer_flag, "current:", block)
+        # print("excute function:", params.timer_flag, "current:", block)
 
     current_gas_used = analysis["gas"]
     if current_gas_used > global_params.GAS_LIMIT:
         log.debug("Run out of gas. Terminating this path ... ")
-        print("Run out of gas. Terminating this path ... ")
+        # print("Run out of gas. Terminating this path ... ")
         return stack
 
     # Execute every instruction, one at a time
@@ -799,10 +799,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         block_ins = vertices[block].get_instructions()
     except KeyError:
         log.debug("This path results in an exception, possibly an invalid jump address")
-        print("This path results in an exception, possibly an invalid jump address")
+        # print("This path results in an exception, possibly an invalid jump address")
         return ["ERROR"]
     except Exception as e:
-        print("block_ins exception!", e)
+        pass
+        # print("block_ins exception!", e)
 
     # print("before ins current_flow:", params.current_flow)
 
@@ -951,7 +952,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
                 raise e
             except TimeoutError as e:
                 log.debug("Timeout!")
-                print("Timeout!", e)
+                # print("Timeout!", e)
                 # raise
             except GlobalTimeOutError as e:
                 raise e
@@ -1017,7 +1018,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
             except TimerFunctionError as e:
                 raise e
             except TimeoutError as e:
-                print("timeout error!", e)
+                # print("timeout error!", e)
+                pass
                 # raise
             except GlobalTimeOutError as e:
                 raise e
@@ -1215,7 +1217,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     #  0s: Stop and Arithmetic Operations
     #
     if opcode == "STOP":
-        print("stopcurrent_flow:", params.current_flow)
+        # print("stopcurrent_flow:", params.current_flow)
         # print("stopgraph:", graph.graph)
         if isLockVar(Global_Flags.call_flag):  # 在call途中
             update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
@@ -1773,9 +1775,14 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 else:
                     byte_index = to_symbolic(byte_index)
                     # computed = second & (255 << (8 * byte_index))
-                    computed = BVAnd(BV(second, 256), BVLShl(BV(255, 256), BVMul(BV(8, 256), BV(byte_index, 256))))
+                    tmp1 = BVMul(BV(8, 256), byte_index)
+                    tmp = BVLShl(BV(255, 256), tmp1)
+                    computed = second & tmp
+                    # computed = BVAnd(second, b)
+                    # computed = BVAnd(BV(second, 256), BVLShl(BV(255, 256), BVMul(BV(8, 256), BV(byte_index, 256))))
                     # computed = computed >> (8 * byte_index)
-                    computed = BVAShr(computed, BVMul(BV(8, 256), BV(byte_index, 256)))
+                    computed = BVAShr(computed, BVMul(BV(8, 256), byte_index))
+                    # computed = BVAShr(computed, BVMul(BV(8, 256), BV(byte_index, 256)))
                 solver_stack.pop()
             computed = computed.simplify() if isSymbolic(computed) else computed
             stack.insert(0, computed)
@@ -2651,7 +2658,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             raise ValueError('STACK underflow')
     elif opcode == "RETURN":
         # TODO: Need to handle miu_i
-        print("returncurrent_flow:", params.current_flow)
+        # print("returncurrent_flow:", params.current_flow)
         # print("returngraph:", graph.graph)
         if len(stack) > 1:
             stack.pop(0)
@@ -2699,7 +2706,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         return
     elif opcode == "REVERT":
         # TODO: Need to handle miu_i
-        print("revert!")
+        # print("revert!")
         if len(stack) > 1:
             global_state["pc"] = global_state["pc"] + 1
             stack.pop(0)
