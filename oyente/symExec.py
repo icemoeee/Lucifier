@@ -539,7 +539,7 @@ def add_falls_to():
 
 def get_init_global_state(path_conditions_and_vars):
     global_state = {"balance": {}, "pc": 0}
-    init_is = init_ia = deposited_value = sender_address = receiver_address = gas_price = origin = currentCoinbase = currentNumber = currentDifficulty = currentGasLimit = callData = None
+    init_is = init_ia = deposited_value = sender_address = receiver_address = gas_price = origin = chainID = BASEFEE = SELFBALANCE = currentCoinbase = currentNumber = currentDifficulty = currentGasLimit = callData = None
 
     if global_params.INPUT_STATE:
         with open('state.json') as f:
@@ -560,6 +560,12 @@ def get_init_global_state(path_conditions_and_vars):
                 origin = int(state["exec"]["origin"], 16)
             if state["env"]["currentCoinbase"]:
                 currentCoinbase = int(state["env"]["currentCoinbase"], 16)
+            if state["env"]["chainID"]:
+                chainID = int(state["env"]["chainID"], 16)
+            if state["env"]["BASEFEE"]:
+                BASEFEE = int(state["env"]["BASEFEE"], 16)
+            if state["env"]["SELFBALANCE"]:
+                SELFBALANCE = int(state["env"]["SELFBALANCE"], 16)
             if state["env"]["currentNumber"]:
                 currentNumber = int(state["env"]["currentNumber"], 16)
             if state["env"]["currentDifficulty"]:
@@ -605,6 +611,21 @@ def get_init_global_state(path_conditions_and_vars):
         new_var_name = "IH_c"
         currentCoinbase = Symbol(new_var_name, BVType(256))
         path_conditions_and_vars[new_var_name] = currentCoinbase
+
+    if not chainID:
+        new_var_name = "IH_e"
+        chainID = Symbol(new_var_name, BVType(256))
+        path_conditions_and_vars[new_var_name] = chainID
+
+    if not BASEFEE:
+        new_var_name = "IH_f"
+        BASEFEE = Symbol(new_var_name, BVType(256))
+        path_conditions_and_vars[new_var_name] = BASEFEE
+
+    if not SELFBALANCE:
+        new_var_name = "IH_f"
+        SELFBALANCE = Symbol(new_var_name, BVType(256))
+        path_conditions_and_vars[new_var_name] = SELFBALANCE
 
     if not currentNumber:
         new_var_name = "IH_i"
@@ -1788,6 +1809,50 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             stack.insert(0, computed)
         else:
             raise ValueError('STACK underflow')
+    elif opcode == "SHL":
+        if len(stack) > 1:
+            global_state["pc"] = global_state["pc"] + 1
+            first = stack.pop(0)
+            second = stack.pop(0)
+            if isAllReal(first, second):
+                first = to_signed(first)
+                second = to_signed(second)
+                computed = (second << first)
+            else:
+                computed = BVLShl(to_symbolic(second), to_symbolic(first)).simplify()
+                # computed = If(first < second, BitVecVal(1, 256), BitVecVal(0, 256))
+                # computed = Ite(BVSLT(to_symbolic(first), to_symbolic(second)), BV(1, 256), BV(0, 256)).simplify()
+            # computed = simplify(computed) if is_expr(computed) else computed
+            stack.insert(0, computed)
+        else:
+            raise ValueError('STACK underflow')
+    elif opcode == "SHR":
+        if len(stack) > 1:
+            global_state["pc"] = global_state["pc"] + 1
+            first = stack.pop(0)
+            second = stack.pop(0)
+            if isAllReal(first, second):
+                first = to_signed(first)
+                second = to_signed(second)
+                computed = (second >> first)
+            else:
+                computed = BVLShr(to_symbolic(second), to_symbolic(first)).simplify()
+                # computed = If(first < second, BitVecVal(1, 256), BitVecVal(0, 256))
+                # computed = Ite(BVSLT(to_symbolic(first), to_symbolic(second)), BV(1, 256), BV(0, 256)).simplify()
+            # computed = simplify(computed) if is_expr(computed) else computed
+            stack.insert(0, computed)
+        else:
+            raise ValueError('STACK underflow')
+    elif opcode == "SAR":
+        if len(stack) > 1:
+            global_state["pc"] = global_state["pc"] + 1
+            first = stack.pop(0)
+            second = stack.pop(0)
+            # 没有算术移位运算符
+            computed = BVAShr(to_symbolic(second), to_symbolic(first)).simplify()
+            stack.insert(0, computed)
+        else:
+            raise ValueError('STACK underflow')
     #
     # 20s: SHA3
     #
@@ -2007,6 +2072,25 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
+    elif opcode == "EXTCODEHASH": # not sure it's right
+        if len(stack) > 0:
+            global_state["pc"] = global_state["pc"] + 1
+            address = stack.pop(0)
+            if isReal(address) and global_params.USE_GLOBAL_BLOCKCHAIN:
+                # simulate the hashing of sha3
+                data = [str(x) for x in address]
+                computed = ''.join(data)
+                computed = re.sub('[\s+]', '', computed)
+                computed = zlib.compress(six.b(computed), 9)
+                computed = base64.b64encode(computed)
+                computed = computed.decode('utf-8', 'strict')
+            else:
+                new_var_name = gen.gen_arbitrary_address_hash_var()
+                computed = Symbol(new_var_name, BVType(256))
+
+            stack.insert(0, computed)
+        else:
+            raise ValueError('STACK underflow')
     elif opcode == "EXTCODECOPY":
         if len(stack) > 3:
             global_state["pc"] = global_state["pc"] + 1
@@ -2075,6 +2159,16 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             stack.insert(0, new_var)
         else:
             raise ValueError('STACK underflow')
+    elif opcode == "CHAINID":  # information from block header
+        global_state["pc"] = global_state["pc"] + 1
+        stack.insert(0, global_state["chainID"])
+    elif opcode == "BASEFEE":
+        global_state["pc"] = global_state["pc"] + 1
+        stack.insert(0, global_state["BASEFEE"])
+    elif opcode == "SELFBALANCE":
+        # not sure it's right
+        global_state["pc"] = global_state["pc"] + 1
+        stack.insert(0, global_state["SELFBALANCE"])
     elif opcode == "COINBASE":  # information from block header
         global_state["pc"] = global_state["pc"] + 1
         stack.insert(0, global_state["currentCoinbase"])
@@ -2430,6 +2524,18 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     elif opcode == "CREATE":
         if len(stack) > 2:
             global_state["pc"] += 1
+            stack.pop(0)
+            stack.pop(0)
+            stack.pop(0)
+            new_var_name = gen.gen_arbitrary_var()
+            new_var = Symbol(new_var_name, BVType(256))
+            stack.insert(0, new_var)
+        else:
+            raise ValueError('STACK underflow')
+    elif opcode == "CREATE2":
+        if len(stack) > 3:
+            global_state["pc"] += 1
+            stack.pop(0)
             stack.pop(0)
             stack.pop(0)
             stack.pop(0)
