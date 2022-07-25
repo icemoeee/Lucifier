@@ -729,6 +729,7 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     global sr_result
     global safe_call_block
     global solverstack
+    global function_sig_list
 
     visited = params.visited
     stack = params.stack
@@ -803,7 +804,11 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
         graph.removeEdge(current_edge)
         loop_edge_dic.update({current_edge: 1})
 
-    if block in function_sig_list or Global_Flags.steps == 2:
+    # fallback(), 只要有其他public function存在就可以依据此方式找到回退函数
+    if Global_Flags.steps == 2 and block > 20:
+        function_sig_list.append(block)
+
+    if block in function_sig_list:
         Global_Flags.timer_flag = params.timer_flag
         params.timer_flag += 1
         mtimer.start()
