@@ -131,7 +131,8 @@ class InputHelper:
         else:
             out = run_command(cmd)
 
-        libs = re.findall(r"_+(.*?)_+", out)
+        # libs = re.findall(r"_+(.*?)_+", out)
+        libs = re.findall(r"__(.*?)______", out)
         libs = set(libs)
         if libs:
             return self._link_libraries(self.source, libs)
@@ -169,7 +170,8 @@ class InputHelper:
         return evm_without_hash
 
     def _extract_bin_str(self, s, err=''):
-        binary_regex = r"\n======= (.*?) =======\nBinary of the runtime part: \n(.*?)\n"
+        # binary_regex = r"\n======= (.*?) =======\nBinary of the runtime part: \n(.*?)\n"
+        binary_regex = r"\n======= (.*?) =======\nBinary of the runtime part:\s?\n(.*?)\n"
         contracts = re.findall(binary_regex, s)
         contracts = [contract for contract in contracts if contract[1]]
         if not contracts:
