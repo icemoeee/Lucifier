@@ -11,7 +11,7 @@ DEBUG_MODE = 0
 CHECK_CONCURRENCY_FP = 0
 
 # Timeout for yices in seconds
-TIMEOUT = 1
+TIMEOUT = 2
 
 # Set this flag to 2 if we want to do evm real value unit test
 # Set this flag to 3 if we want to do evm symbolic unit test
@@ -21,7 +21,7 @@ UNIT_TEST = 0
 GLOBAL_TIMEOUT = 3600
 
 # timeout to run function (ins secs)
-FUNCTION_TIMEOUT = 1
+FUNCTION_TIMEOUT = 3
 
 # timeout to run symbolic execution (in secs) for testing
 GLOBAL_TIMEOUT_TEST = 2

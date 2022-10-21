@@ -294,6 +294,13 @@ def has_storage_vars(expr, storage_vars):
     return False
 
 
+def get_all_vars_from_expr(expr):
+    ret_vars = []
+    if is_expression(expr):
+        ret_vars += expr.get_free_variables()
+    return ret_vars
+
+
 def get_all_vars(exprs):
     ret_vars = []
     for expr in exprs:
@@ -534,6 +541,20 @@ def is_sub_list(listA, listB):
     a = list_to_str(listA)
     b = list_to_str(listB)
     return b.find(a) != -1
+
+
+def item_in_lists(item, totallist):
+    for x in totallist:
+        if item in x:
+            return x
+    return []
+
+
+def is_item_in_lists(item, totallist):
+    for x in totallist:
+        if item in x:
+            return True
+    return False
 
 
 def extract_list_max(listA):

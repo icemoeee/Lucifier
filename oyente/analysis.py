@@ -6,6 +6,7 @@ from vargenerator import *
 from utils import *
 import global_params
 from pysmt.shortcuts import *
+from solverstack import solverstack
 
 log = logging.getLogger(__name__)
 
@@ -35,9 +36,11 @@ def init_analysis():
 
 
 def check_dw_reentry(storage_backup, final_storage, dw_keys):
+    # print("================check_dw_reentry=========================")
     ret = False
     # print("storage:", storage_backup)
     # print("final:", final_storage)
+    # print("dw_keys:", dw_keys)
     for key in final_storage.keys():
         if key in storage_backup.keys():
             if isAllReal(storage_backup[key], final_storage[key]):
@@ -83,6 +86,7 @@ def check_sroc_reentry(params, analysis, global_problematic_pcs):
 
 def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, path_index):
     path_condition = path_conditions_and_vars["path_condition"]
+    # print("---------------update_sr_postion----------------------")
     # print("path_condition:", path_condition)
     tmp_dict = {}
     for expr in path_condition:
@@ -97,17 +101,22 @@ def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, p
                 if pos in global_state['Ia']:
                     tmp_dict.update({pos: var})
     storage_dict_kv.update({path_index: tmp_dict})
+    # print("storage_dict_kv:", storage_dict_kv)
 
 
 def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, pc, key_pcs, result_list):
     result = {}
+    # print("---------------------check_sr_reentry---------------------------")
+    # print("address:", address)
     for item in call_result_list:
         # print("path:", item["path_index"])
         # print("item_cr:", item["current_flow"])
-        # print("current_flow:", current_flow)
+        # print("out_call_flow:", out_call_flow)
+        # print("in_call_flow:", item["in_call_flow"])
         if list_to_str(out_call_flow) in list_to_str(item["in_call_flow"]):
             path = item["path_index"]
             storage_kv = storage_dict_kv[path]
+            # print("storage_kv:", storage_kv)
             if isReal(address):
                 if address in storage_kv.keys():
                     result["flag"] = True
@@ -127,6 +136,7 @@ def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, 
                     key_pcs.append(pc)
                     result["key_pcs"] = key_pcs
                     result_list.append(result)
+                    # print("yesssssssssssssssssssssssss!")
                     return True
             # break
     return False
@@ -237,12 +247,6 @@ def calculate_gas(opcode, stack, mem, global_state, analysis, solver):
     gas_increment += new_gas_memory - gas_memory
 
     return (gas_increment, new_gas_memory)
-
-
-def update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver):
-    gas_increment, gas_memory = calculate_gas(opcode, stack, mem, global_state, analysis, solver)
-    analysis["gas"] += gas_increment
-    analysis["gas_mem"] = gas_memory
 
 
 def analysis_call(path_conditions_and_vars, outgas):

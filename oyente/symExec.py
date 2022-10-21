@@ -1234,7 +1234,15 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     # collecting the analysis result by calling this skeletal function
     # this should be done before symbolically executing the instruction,
     # since SE will modify the stack and mem
-    # update_analysis(analysis, opcode, stack, mem, global_state, path_conditions_and_vars, solver)
+    # if opcode == "CALL" and isUnlockVar(Global_Flags.call_flag):  # 不在call途中
+    #     try:
+    #         tmp_stack = stack.copy()
+    #         tmp_global_state = global_state.copy()
+    #         tmp_path_conditions_and_vars = path_conditions_and_vars.copy()
+    #         update_analysis(analysis, global_problematic_pcs, opcode, tmp_stack, tmp_global_state, tmp_path_conditions_and_vars)
+    #         # print("-----------------------update-end!!--------------------------------------")
+    #     except Exception as e:
+    #         print("analysis error!", e)
 
     log.debug("==============================")
     log.debug("EXECUTING: " + instr)
@@ -1251,7 +1259,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                 ret_v = check_dw_reentry(storage_backup, global_state['Ia'], dw_keys)
             else:
                 ret_v = False
-            # print("dw_keys:", dw_keys)
+            # print("----dw_keys:", dw_keys)
             # if ret_v:
             #     analysis["reentrancy_bug"].append(True)
             #     global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
@@ -1282,9 +1290,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
         else:
             validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result)
             # check self-reentry only call
-            if params.current_call_target in current_function and params.current_call_target != CONSTANT_ZERO:
-                # print("stop keys:", params.reentry_key_pcs)
-                check_sroc_reentry(params, analysis, global_problematic_pcs)
+            # if params.current_call_target in current_function and params.current_call_target != CONSTANT_ZERO:
+            #     # print("stop keys:", params.reentry_key_pcs)
+            #     check_sroc_reentry(params, analysis, global_problematic_pcs)
 
         global_state["pc"] = global_state["pc"] + 1
         return
@@ -2347,11 +2355,11 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             # print("Global_Flags.call_flag:", Global_Flags.call_flag)
             # print("been_call:", been_call)
             # print("dw_changed:", dw_changed)
-            # print("dw_keys:", dw_keys)
+            # print("sload!dw_keys:", dw_keys)
             if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
                 if isLockVar(been_call):  # 被call过
                     if dw_changed:  # check dw is True
-                        if position in dw_keys:
+                        if position in dw_keys or str(position) in dw_keys:
                             analysis["reentrancy_bug"].append(True)
                             reentry_key_pcs.append(global_state["pc"])
                             global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
@@ -2416,6 +2424,12 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     back_call_result_list = params_backup[call_block].call_result_list
                     if back_call_result_list:
                         check_sr_reentry(stored_address, back_call_result_list, out_call_flow, storage_dict_kv, global_state["pc"], reentry_key_pcs, sr_result)
+                if isLockVar(been_call):  # 被call过
+                    if dw_changed:  # check dw is True
+                        if stored_address in dw_keys or str(stored_address) in dw_keys:
+                            analysis["reentrancy_bug"].append(True)
+                            reentry_key_pcs.append(global_state["pc"])
+                            global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
             global_state["pc"] = global_state["pc"] + 1
         else:
             raise ValueError('STACK underflow')
@@ -2777,11 +2791,12 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             # TODO
             if isLockVar(Global_Flags.call_flag):  # 在call途中
                 update_sr_postion(new_path_conditions_and_vars, global_state, storage_dict_kv, Global_Flags.path_index)
-                # return忽略DW (fixed)
-                if Global_Flags.call_target not in current_function:
-                    ret_v = check_dw_reentry(storage_backup, global_state['Ia'], dw_keys)
-                else:
-                    ret_v = False
+                # return忽略DW (fixed) --------- (还是忽略吧)
+                ret_v = False
+                # if Global_Flags.call_target not in current_function:
+                #     ret_v = check_dw_reentry(storage_backup, global_state['Ia'], dw_keys)
+                # else:
+                #     ret_v = False
                 # 记录当前路径结果call_result_list
                 # print("path:", Global_Flags.path_index)
                 call_result = {}
@@ -2808,9 +2823,9 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             else:
                 validate_sr_reentry(analysis, global_problematic_pcs, out_call_flow, sr_result)
                 # check self-reentry only call
-                if params.current_call_target in current_function and params.current_call_target != CONSTANT_ZERO:
-                    # print("return keys:", params.reentry_key_pcs)
-                    check_sroc_reentry(params, analysis, global_problematic_pcs)
+                # if params.current_call_target in current_function and params.current_call_target != CONSTANT_ZERO:
+                #     # print("return keys:", params.reentry_key_pcs)
+                #     check_sroc_reentry(params, analysis, global_problematic_pcs)
             pass
         else:
             raise ValueError('STACK underflow')
