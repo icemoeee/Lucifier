@@ -309,6 +309,18 @@ def get_all_vars(exprs):
     return ret_vars
 
 
+def judge_expr_has_common_vars(expr_A, expr_B):
+    listA = get_all_vars_from_expr(expr_A)
+    listB = get_all_vars_from_expr(expr_B)
+    if listA == [] or listB == []:
+        return False
+    else:
+        for a in listA:
+            if a in listB:
+                return True
+        return False
+
+
 def get_storage_position(var):
     if not isinstance(var, str):
         var = var.symbol_name()

@@ -104,6 +104,40 @@ def update_sr_postion(path_conditions_and_vars, global_state, storage_dict_kv, p
     # print("storage_dict_kv:", storage_dict_kv)
 
 
+def update_relation(relation_call_vars, transfer_amount, problem_call_vars):
+    for i in relation_call_vars.keys():
+        if str(transfer_amount) in str(relation_call_vars[i]):
+            problem_call_vars.append(i)
+    pass
+
+
+def check_relation(problem_call_vars, stored_address, out_call_flow, in_call_flow):
+    if list_to_str(out_call_flow) in list_to_str(in_call_flow):
+        if isReal(stored_address):
+            if stored_address in problem_call_vars:
+                return True
+        else:
+            if str(stored_address) in problem_call_vars:
+                return True
+    return False
+
+
+def check_dw_relation(stored_address, dw_keys, state):
+    flag = False
+    if dw_keys and (stored_address in state or str(stored_address) in state):
+        if isReal(stored_address):
+            valueB = state[stored_address]
+        else:
+            valueB = state[str(stored_address)]
+        for key in dw_keys:
+            if isReal(key):
+                valueA = state[key]
+            else:
+                valueA = state[str(key)]
+            flag |= judge_expr_has_common_vars(valueA, valueB)
+    return flag
+
+
 def check_sr_reentry(address, call_result_list, out_call_flow, storage_dict_kv, pc, key_pcs, result_list):
     result = {}
     # print("---------------------check_sr_reentry---------------------------")

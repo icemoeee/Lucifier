@@ -72,6 +72,8 @@ class Parameter:
             "dw_keys": [],
             "dw_changed": False,
             # "call_value_flag": CONSTANT_FALSE,
+            "relation_call_vars": {},
+            "problem_call_vars": [],
             "sstore_flag": CONSTANT_FALSE,
             "current_call_target": CONSTANT_ZERO,
             "graph": Graph(),
@@ -759,6 +761,8 @@ def sym_exec_block(params, block, pre_block, depth, func_call, current_func_name
     loop_edge_dic = params.loop_edge_dic
     timer_flag = params.timer_flag
     mtimer = params.mtimer
+    relation_call_vars = params.relation_call_vars
+    problem_call_vars = params.problem_call_vars
 
     Global_Flags.steps += 1
     Edge = namedtuple("Edge", ["v1", "v2"])  # Factory Function for tuples is used as dictionary key
@@ -1194,6 +1198,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
     loop_edge_dic = params.loop_edge_dic
     timer_flag = params.timer_flag
     mtimer = params.mtimer
+    relation_call_vars = params.relation_call_vars
+    problem_call_vars = params.problem_call_vars
 
     visited_pcs.add(global_state["pc"])
 
@@ -2402,6 +2408,13 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                         global_state["Ia"][position] = new_var
                     else:
                         global_state["Ia"][str(position)] = new_var
+
+            if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
+                if isUnlockVar(been_call):  # 没被call过
+                    if isReal(position):
+                        relation_call_vars[position] = stack[0]
+                    else:
+                        relation_call_vars[str(position)] = stack[0]
         else:
             raise ValueError('STACK underflow')
 
@@ -2412,21 +2425,34 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             stored_address = stack.pop(0)
             stored_value = stack.pop(0)
             params.sstore_flag = CONSTANT_TRUE
+            if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
+                if isLockVar(been_call):  # 被call过
+                    if dw_changed:  # check dw is True
+                        if check_dw_relation(stored_address, dw_keys, global_state["Ia"]):
+                            analysis["reentrancy_bug"].append(True)
+                            reentry_key_pcs.append(global_state["pc"])
+                            global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
             if isReal(stored_address):
                 # note that the stored_value could be unknown
                 global_state["Ia"][stored_address] = stored_value
             else:
                 # note that the stored_value could be unknown
                 global_state["Ia"][str(stored_address)] = stored_value
-            if isUnlockVar(Global_Flags.call_flag): # 不在call途中
+            if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
+                if isUnlockVar(been_call):  # 没被call过
+                    if isReal(stored_address):
+                        relation_call_vars[stored_address] = stored_value
+                    else:
+                        relation_call_vars[str(stored_address)] = stored_value
+            if isUnlockVar(Global_Flags.call_flag):  # 不在call途中
                 call_block = params.call_block
                 if call_block != CONSTANT_ZERO:
                     back_call_result_list = params_backup[call_block].call_result_list
                     if back_call_result_list:
                         check_sr_reentry(stored_address, back_call_result_list, out_call_flow, storage_dict_kv, global_state["pc"], reentry_key_pcs, sr_result)
                 if isLockVar(been_call):  # 被call过
-                    if dw_changed:  # check dw is True
-                        if stored_address in dw_keys or str(stored_address) in dw_keys:
+                    if problem_call_vars:
+                        if check_relation(problem_call_vars, stored_address, out_call_flow, in_call_flow):
                             analysis["reentrancy_bug"].append(True)
                             reentry_key_pcs.append(global_state["pc"])
                             global_problematic_pcs["reentrancy_bug"].append(reentry_key_pcs)
@@ -2583,7 +2609,10 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             # in the paper, it is shaky when the size of data output is
             # min of stack[6] and the | o |
 
-            # if isReal(transfer_amount):
+            value_flag = True
+            # 只考虑简单call现阶段
+            if isReal(transfer_amount):
+                value_flag = False
             #     if transfer_amount == 0:
             #         stack.insert(0, 1)
             #         # add call judge here ----- means can not call
@@ -2663,6 +2692,8 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
                     reentry_key_pcs.append(global_state["pc"])
                     if isUnlockVar(Global_Flags.call_flag):  # unlock就有跳转，否则没有跳转
                         Global_Flags.call_flag = lock_var(Global_Flags.call_flag)
+                        if value_flag:
+                            update_relation(relation_call_vars, transfer_amount, problem_call_vars)
                         if global_state["pc"] not in unsafecall_affect_list:
                             unsafecall_affect_list.append(global_state["pc"])
                         params.been_call = lock_var(been_call)
