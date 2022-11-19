@@ -359,8 +359,9 @@ def collect_vertices(tokens):
     current_line_content = ""
     wait_for_push = False
     is_new_block = False
+    pre = -1
+    tail = -1
     dest_flag = False
-    dest_list = []
 
     for tok_type, tok_string, (srow, scol), _, line_number in tokens:
         if wait_for_push is True: # add value, to 16 jin zhi
@@ -385,6 +386,7 @@ def collect_vertices(tokens):
             continue
         elif is_new_line is True and tok_type == NUMBER:  # looking for a line number
             last_ins_address = current_ins_address
+            tail = current_ins_address
             try:
                 current_ins_address = int(tok_string) # line number(address)
             except ValueError:
@@ -405,71 +407,48 @@ def collect_vertices(tokens):
             continue
         elif tok_type == NAME: # just operator
             if tok_string == "JUMPDEST":
-                dest_flag = True
-                dest_list.append(current_block)
                 if last_ins_address not in end_ins_dict:
                     end_ins_dict[current_block] = last_ins_address # before?? JUMPDEST address
+                if not dest_flag:
+                    pre = tail = current_ins_address
+                    end_ins_dict[pre] = tail
+                else:
+                    end_ins_dict[pre] = tail
+                dest_flag = True
+                pre = tail = current_ins_address
                 current_block = current_ins_address # JUMPDEST address
                 is_new_block = False
             elif tok_string == "STOP" or tok_string == "RETURN" or tok_string == "SUICIDE" or tok_string == "REVERT" or tok_string == "ASSERTFAIL":
-                if dest_flag:  # 连续两个jumpdest的处理（没处理3个以上，遇到再说）
-                    if dest_list:
-                        lth = len(dest_list)
-                        for dk in range(lth):
-                            second = dk + 1
-                            if second < lth:
-                                if dest_list[dk] == dest_list[second]:
-                                    dv = dest_list[dk]
-                                    end_ins_dict[dv] = dv
-                dest_list = []
+                if dest_flag:
+                    end_ins_dict[pre] = tail
+                    dest_flag = False
+                tail = current_ins_address
                 jump_type[current_block] = "terminal"
                 end_ins_dict[current_block] = current_ins_address
-                dest_flag = False
             elif tok_string == "JUMP":
                 if dest_flag:
-                    if dest_list:
-                        lth = len(dest_list)
-                        for dk in range(lth):
-                            second = dk + 1
-                            if second < lth:
-                                if dest_list[dk] == dest_list[second]:
-                                    dv = dest_list[dk]
-                                    end_ins_dict[dv] = dv
-                dest_list = []
+                    end_ins_dict[pre] = tail
+                    dest_flag = False
+                tail = current_ins_address
                 jump_type[current_block] = "unconditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
-                dest_flag = False
             elif tok_string == "JUMPI":
                 if dest_flag:
-                    if dest_list:
-                        lth = len(dest_list)
-                        for dk in range(lth):
-                            second = dk + 1
-                            if second < lth:
-                                if dest_list[dk] == dest_list[second]:
-                                    dv = dest_list[dk]
-                                    end_ins_dict[dv] = dv
-                dest_list = []
+                    end_ins_dict[pre] = tail
+                    dest_flag = False
+                tail = current_ins_address
                 jump_type[current_block] = "conditional"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
-                dest_flag = False
             elif tok_string == "CALL":
                 if dest_flag:
-                    if dest_list:
-                        lth = len(dest_list)
-                        for dk in range(lth):
-                            second = dk + 1
-                            if second < lth:
-                                if dest_list[dk] == dest_list[second]:
-                                    dv = dest_list[dk]
-                                    end_ins_dict[dv] = dv
-                dest_list = []
+                    end_ins_dict[pre] = tail
+                    dest_flag = False
+                tail = current_ins_address
                 jump_type[current_block] = "call_type"
                 end_ins_dict[current_block] = current_ins_address
                 is_new_block = True
-                dest_flag = False
             elif tok_string.startswith('PUSH', 0):
                 wait_for_push = True
             is_new_line = False
@@ -2465,7 +2444,6 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             target_address = stack.pop(0)
             if isSymbolic(target_address):
                 try:
-                    # print("target_address:", target_address)
                     target_address = BV_to_int(target_address)
                 except:
                     raise TypeError("Target address must be an integer")
@@ -2480,6 +2458,7 @@ def sym_exec_ins(params, block, depth, instr, func_call, current_func_name):
             target_address = stack.pop(0)
             if isSymbolic(target_address):
                 try:
+                    # print('JUMPI---------', target_address)
                     target_address = BV_to_int(target_address)
                 except:
                     raise TypeError("Target address must be an integer")

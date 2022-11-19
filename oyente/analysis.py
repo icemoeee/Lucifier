@@ -130,6 +130,14 @@ def check_dw_relation(stored_address, dw_keys, state):
         else:
             valueB = state[str(stored_address)]
         for key in dw_keys:
+            # 不能相同
+            if isAllReal(key, stored_address):
+                if key == stored_address:
+                    continue
+            else:
+                if str(stored_address) == str(key):
+                    continue
+            # 只能相关
             if isReal(key):
                 valueA = state[key]
             else:
@@ -289,8 +297,18 @@ def analysis_call(path_conditions_and_vars, outgas):
     ret = str(outgas).find("2300")
     constraint = BVSGT(to_symbolic(outgas), BV(2300, 256))
     path_conditions_and_vars["path_condition"].append(constraint)
+    if ret != -1:
+        return False
+    else:
+        # print('======call=====', path_conditions_and_vars["path_condition"])
+        s_stack = solverstack()
+        for item in path_conditions_and_vars["path_condition"]:
+            s_stack.add(item)
+        result = check_sat(solver_stack=s_stack)
+        # print("result:", result)
+        return result
     # if -1, it's unsafe call
-    return ret == -1
+    # return ret == -1
 
 
 # Check if it is possible to execute a path after a previous path
